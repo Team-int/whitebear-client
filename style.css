@@ -8,6 +8,7 @@ body {
     width: 100%;
     height: auto;
     margin-bottom: 10px;
+    max-width: 97vw;
 }
 
 .history2 {
@@ -16,6 +17,7 @@ body {
     width: 100%;
     height: auto;
     margin-bottom: 10px;
+    max-width: 97vw;
 }
 
 .box {
@@ -36,4 +38,8 @@ body {
     width: 100%;
     display: grid;
     grid-template-columns: 100% 0;
+}
+
+.empty {
+    min-width: 20px;
 }

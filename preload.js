@@ -14,7 +14,7 @@ window.addEventListener('load', () => {
       let element2 = document.createElement('div');
       element2.setAttribute('class', 'history2');
       element2.innerHTML = `<div class="box">${resp.data}</div><div class="empty"></div>`;
-      document.querySelector('#history-container').appendChild(element2);
+      document.querySelector('#history-container').appendChild(element2);window.scrollTo(0, document.querySelector('#history-container').scrollHeight)
     });
   });
 });
