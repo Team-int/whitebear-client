@@ -1,0 +1,151 @@
+name: Build App
+on:
+  push:
+    branches-ignore:
+      - build
+  workflow_dispatch:
+jobs:
+  buildLnx:
+    name: Debian, RedHat Package(.deb, .rpm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: '14'
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+          persist-credentials: false 
+      - name: Install Dependencies
+        run: npm i
+      - name: Install rpm, fakeroot, and dpkg
+        run: sudo apt update && sudo apt install rpm fakeroot dpkg
+      - name: Build
+        run: npm run make
+      - name: Upload Deb Artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: deb
+          path: out/make/deb/x64
+      - name: Upload Rpm Artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: rpm
+          path: out/make/rpm/x64
+  buildMac:
+    name: macOS Application(.dmg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: '14'
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+          persist-credentials: false 
+      - name: Install Dependencies
+        run: npm i
+      - name: Build
+        run: npm run make
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: mac
+          path: out/make
+  buildWin:
+    name: Windows Executable and Installer(.exe, .msi)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: '14'
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+          persist-credentials: false 
+      - name: Install Dependencies
+        run: npm i
+      - name: Install Additional Dependencies
+        run: npm i exe-icon-extractor
+      - name: Add light and candle to PATH
+        run: echo "C:\Program Files (x86)\Wix Toolset v3.11\bin" >> $GITHUB_PATH
+        shell: bash
+      - name: Build
+        run: npm run make
+        shell: bash
+      - name: Upload Squirrel Artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: squirrel
+          path: out/make/squirrel.windows/x64
+      - name: Upload MSI Artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: msi
+          path: out/make/wix/x64
+  deploy:
+    needs: [buildLnx, buildMac, buildWin]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+      - name: Download Deb Artifacts
+        uses: actions/download-artifact@v1
+        with:
+          name: deb
+      - name: Download Rpm Artifacts
+        uses: actions/download-artifact@v1
+        with:
+          name: rpm
+      - name: Deploy Deb Packages
+        uses: JamesIves/github-pages-deploy-action@3.7.1
+        with:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          BRANCH: build
+          FOLDER: deb
+          CLEAN: true
+      - name: Deploy Rpm Packages
+        uses: JamesIves/github-pages-deploy-action@3.7.1
+        with:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          BRANCH: build
+          FOLDER: rpm
+          CLEAN: false
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v1
+        with:
+          name: mac
+      - name: Deploy macOS Application
+        uses: JamesIves/github-pages-deploy-action@3.7.1
+        with:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          BRANCH: build
+          FOLDER: mac
+          CLEAN: false
+      - name: Download Squirrel Artifacts
+        uses: actions/download-artifact@v1
+        with:
+          name: squirrel
+      - name: Deploy Windows Executable
+        uses: JamesIves/github-pages-deploy-action@3.7.1
+        with:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          BRANCH: build
+          FOLDER: squirrel
+          CLEAN: false
+      - name: Download MSI Artifacts
+        uses: actions/download-artifact@v1
+        with:
+          name: msi
+      - name: Deploy Windows Installer
+        uses: JamesIves/github-pages-deploy-action@3.7.1
+        with:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          BRANCH: build
+          FOLDER: msi
+          CLEAN: false
