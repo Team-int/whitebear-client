@@ -1,0 +1,1628 @@
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" 
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <!-- http://wixtoolset.org/documentation/manual/v3/xsd/wix/product.html -->
+  <Product Id="F77AA725-B771-4FE7-9874-06C2F30BB773" 
+           UpgradeCode="b0456dcb-61c9-41e1-ab87-a8c1c3b65ce9"
+           Name = "WhiteBear (Machine - MSI)"
+           Version="1.0.1.0"
+           Manufacturer="Team int"
+           Language="1042">
+    <!-- Only run this installer on Windows 7 or up (or if it"s already installed, I guess) -->
+    <!-- <Condition Message="This application is only supported on Windows 7 or higher.">
+      <![CDATA[Installed OR (VersionNT >= 601)]]>
+    </Condition> -->
+    <!-- http://wixtoolset.org/documentation/manual/v3/xsd/wix/package.html -->
+    <Package InstallerVersion="405"
+             Compressed="yes"
+             Comments="Windows Installer Package"
+             Platform="x86"/>
+    <!-- Don't allow downgrades -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A later version of this product is already installed. Setup will now exit."/>
+    <!-- This will hide our Uninstall entry in Apps & Features. We doing this so
+    we can write our own which we can better control. -->
+    <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
+    <!-- While the MSI package is hidden in Apps & Features, it can still be queried
+    via PowerShell and other means. To differentiate we give the public entry a slightly
+    different name to make admins life easier.  -->
+    <Property Id="VisibleProductName" Value="WhiteBear (Machine)" />
+    <!-- Signals Single Package Authoring. This pacakge can pe installed perMachine
+    or perUser. The mode is determined by the property below. -->
+    <Property Id="ALLUSERS" Secure="yes" Value="2" />
+    <!-- Tells the package to install perUser or perMachine. In case of perUser, all
+    files will be redirected to the user profile and all registry entries to HKCU. -->
+    <Property Id="MSIINSTALLPERUSER" Secure="yes" Value="0" />
+    <!-- Overides the default install mode. It solves a problem where
+    individual packaged files that have the same version as in previous
+    installed App version will be deleted if the files are in use during
+    this upgrade. Unfortunately this causes an ICE 40 warning during linking. -->
+    <Property Id="REINSTALLMODE" Value="emus" />
+    <!-- Overrides the default reboot behavior if files are in use during the upgrade.
+     This way no unpxecpted reboot will happpen.-->
+    <Property Id="REBOOT" Value="ReallySuppress" />
+    <!-- A property that holds the intall path and is needed to delete all files on
+    uninstall, even if they are not wriiten as part of this MSI. The value comes from a 
+    registry we set on install.-->
+    <Property Id="INSTALLLEVEL" Value="2" />
+    <!-- Allows to customize the Windows user group that gets access rights on
+    the install folder in cas the auto-updater is installed. User that run the App
+    must be part of that user group to be able to auto-update. -->
+    <Property Id="UPDATERUSERGROUP" Value="Users" />
+    <!-- A property to define whether the auto-updater is enabled when the
+    feature gets installed. This way the update can be installed but also be disabled
+    by overwriting the default value.  -->
+    <Property Id="AUTOUPDATEENABLED" Value="1" />
+    <!-- Necessary registry search to find the install path which is used by the
+    PurgeOnUninstall action. Since this package can be installed perUser or perMachine,
+    we have to look in both places. First successful search wins. -->
+    <Property Id="INSTALLPATH">
+      <RegistrySearch Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq"
+                      Root="HKCU" 
+                      Type="raw"
+                      Id="INSTALLPATH_REGSEARCH_HKCU"
+                      Name="InstallPath"
+                      Win64="no"/>
+      <RegistrySearch Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq"
+                      Root="HKLM" 
+                      Type="raw"
+                      Id="INSTALLPATH_REGSEARCH_HKLM"
+                      Name="InstallPath"
+                      Win64="no"/>
+    </Property>
+    <!-- Lets change the product name depending on the perUser installMode. 
+    This way the user and admins can see in which scope the MSI was installed. -->
+    <SetProperty Action="SetVisibleProductName" Id="VisibleProductName" Sequence="both" Before="AppSearch"  Value="WhiteBear (User)">
+      <![CDATA[MSIINSTALLPERUSER = "1"]]>
+    </SetProperty>
+    <!-- Again we give thee MSI generaten entry a slightly different name to help 
+    differentiate between the public one and the invisible one. -->
+    <SetProperty Action="SetProductName" Id="ProductName" Sequence="both" Before="AppSearch"  Value="WhiteBear (User - MSI)">
+      <![CDATA[MSIINSTALLPERUSER = "1"]]>
+    </SetProperty>
+
+    <Media Id="1" Cabinet="product.cab" EmbedCab="yes"/>
+
+    <UI Id="UserInterface">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="FeatureTree" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">NOT Installed</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="1">Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">NOT Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg" Order="1">NOT Installed OR WixUI_InstallMode = "Change"</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="3">Installed AND PATCH</Publish>
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="CustomizeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+    </UI>
+    <UIRef Id="WixUI_Common" />
+
+
+    <!-- Step 2: Add files and directories -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+       <!-- Installation files to %PROGRAMFILES% -->
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="APPLICATIONROOTDIRECTORY" Name="WhiteBear">
+          <Directory Id="__cac67eed_0c05_41b2_9e5d_7a7c6f770305" Name="app-1.0.1">
+            <Directory Id="_locales_883f9384_dcbb_4cbe_9e99_e2aeef66eb1c" Name="locales">
+              <Component Id="_locales_am.pak_329264e6_3ddf_4fd2_acf8_6544c7e35e59" Guid="375a315b-0443-43d7-9b93-1f4ee2982053" Win64="no">
+                <File Name="am.pak" Id="_locales_am.pak_329264e6_3ddf_4fd2_acf8_6544c7e35e59" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\am.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ar.pak_dd6a3699_b654_4da3_b19d_8dbd3ae26716" Guid="a9981c0f-ee07-46c8-be4d-6ae3392b12a0" Win64="no">
+                <File Name="ar.pak" Id="_locales_ar.pak_dd6a3699_b654_4da3_b19d_8dbd3ae26716" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ar.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_bg.pak_c4a5e7bd_47c7_47f3_861f_291b5b568bb2" Guid="3b158784-a8f5-4441-ad3b-5269cdf5ac6a" Win64="no">
+                <File Name="bg.pak" Id="_locales_bg.pak_c4a5e7bd_47c7_47f3_861f_291b5b568bb2" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\bg.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_bn.pak_66daf331_fc90_4ad4_a635_8e05c44e2d8a" Guid="eea26780-d0d8-492c-b126-ed14d532ee24" Win64="no">
+                <File Name="bn.pak" Id="_locales_bn.pak_66daf331_fc90_4ad4_a635_8e05c44e2d8a" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\bn.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ca.pak_c8c7d2b3_6ed6_4052_9337_037864bda2ac" Guid="12d17e0e-65b2-460e-a6c7-8cfdd9ee9d14" Win64="no">
+                <File Name="ca.pak" Id="_locales_ca.pak_c8c7d2b3_6ed6_4052_9337_037864bda2ac" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ca.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_cs.pak_0bd8e098_5d4f_4ffb_b03e_2500121abd1c" Guid="b8261236-ce9c-4139-a8ea-84c13dd57b79" Win64="no">
+                <File Name="cs.pak" Id="_locales_cs.pak_0bd8e098_5d4f_4ffb_b03e_2500121abd1c" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\cs.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_da.pak_3aea07d0_a028_4279_80b8_1892841e116e" Guid="f8ed7b91-5230-463d-8832-cfac33fea221" Win64="no">
+                <File Name="da.pak" Id="_locales_da.pak_3aea07d0_a028_4279_80b8_1892841e116e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\da.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_de.pak_87fee9ae_811b_4e69_beb6_9fc8de98ee75" Guid="03513d94-bf36-478e-8e8e-855e75d54992" Win64="no">
+                <File Name="de.pak" Id="_locales_de.pak_87fee9ae_811b_4e69_beb6_9fc8de98ee75" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\de.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_el.pak_40ea86d4_7ecc_4b4b_a6be_a8d5894bfb66" Guid="d21f11d1-40f7-460c-90f6-f2054f661103" Win64="no">
+                <File Name="el.pak" Id="_locales_el.pak_40ea86d4_7ecc_4b4b_a6be_a8d5894bfb66" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\el.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_en_GB.pak_8dbaca92_4a56_4550_ad01_8fbc57985cde" Guid="8ecea589-6ba1-4e72-b748-2693cdc07408" Win64="no">
+                <File Name="en-GB.pak" Id="_locales_en_GB.pak_8dbaca92_4a56_4550_ad01_8fbc57985cde" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\en-GB.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_en_US.pak_98888f5e_06b3_45cd_a7ee_941633e196df" Guid="4a89ddcf-4940-401a-95c2-9e2bafed082b" Win64="no">
+                <File Name="en-US.pak" Id="_locales_en_US.pak_98888f5e_06b3_45cd_a7ee_941633e196df" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\en-US.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_es_419.pak_21faf512_5f01_492d_85dd_5b285c56fdfd" Guid="169bc456-6fae-48c0-b56a-4a7236b0d637" Win64="no">
+                <File Name="es-419.pak" Id="_locales_es_419.pak_21faf512_5f01_492d_85dd_5b285c56fdfd" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\es-419.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_es.pak_51d52ccc_7d0c_4999_99b8_fca0c824b052" Guid="5ebe90a3-ea1c-4fde-9055-a1f04681236f" Win64="no">
+                <File Name="es.pak" Id="_locales_es.pak_51d52ccc_7d0c_4999_99b8_fca0c824b052" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\es.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_et.pak_468c3043_0c96_480d_95d5_b8829436bee3" Guid="a44b0cc3-86b7-48d6-9a15-3adb7dfea058" Win64="no">
+                <File Name="et.pak" Id="_locales_et.pak_468c3043_0c96_480d_95d5_b8829436bee3" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\et.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_fa.pak_902e2980_a960_4270_89a9_f66a1cbdf860" Guid="66c4d40b-32a4-49de-a76d-da4d90caa1b9" Win64="no">
+                <File Name="fa.pak" Id="_locales_fa.pak_902e2980_a960_4270_89a9_f66a1cbdf860" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\fa.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_fi.pak_a862ed81_6296_41db_a6f8_31dbbf68356c" Guid="ee359b0b-fd78-446a-8e21-031ae0130b44" Win64="no">
+                <File Name="fi.pak" Id="_locales_fi.pak_a862ed81_6296_41db_a6f8_31dbbf68356c" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\fi.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_fil.pak_e056436c_324f_4110_96d7_b2a54ae4f421" Guid="13fd2016-f4bc-4007-857f-e8ef7824a610" Win64="no">
+                <File Name="fil.pak" Id="_locales_fil.pak_e056436c_324f_4110_96d7_b2a54ae4f421" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\fil.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_fr.pak_ff09e01e_af4b_41a3_a4c6_ec2fadba6099" Guid="aa9ec444-bc19-4150-8d6e-9134dcedaeef" Win64="no">
+                <File Name="fr.pak" Id="_locales_fr.pak_ff09e01e_af4b_41a3_a4c6_ec2fadba6099" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\fr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_gu.pak_a188aed5_e72a_45a4_9095_37ad7b603266" Guid="4523ba47-bbfa-4f5d-a5d8-d1aef29bbb22" Win64="no">
+                <File Name="gu.pak" Id="_locales_gu.pak_a188aed5_e72a_45a4_9095_37ad7b603266" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\gu.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_he.pak_f7198e47_5dde_49ae_ae21_aa12579fb7ce" Guid="a9150e37-4b29-45a3-863d-d492eb6bb68e" Win64="no">
+                <File Name="he.pak" Id="_locales_he.pak_f7198e47_5dde_49ae_ae21_aa12579fb7ce" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\he.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_hi.pak_5065c413_f92a_46d1_ada1_b5a15b5c993a" Guid="0d0601e5-7a09-4bc8-b2f9-681968245343" Win64="no">
+                <File Name="hi.pak" Id="_locales_hi.pak_5065c413_f92a_46d1_ada1_b5a15b5c993a" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\hi.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_hr.pak_3db424db_6617_4405_9bce_f6f2c4539f13" Guid="f3ec0781-f662-4210-b49e-51e98ea1f894" Win64="no">
+                <File Name="hr.pak" Id="_locales_hr.pak_3db424db_6617_4405_9bce_f6f2c4539f13" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\hr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_hu.pak_6fe6344b_cd1f_4dd2_8eb4_748eec4233c6" Guid="a1524060-18f2-41bc-8fea-1a00bc7956cf" Win64="no">
+                <File Name="hu.pak" Id="_locales_hu.pak_6fe6344b_cd1f_4dd2_8eb4_748eec4233c6" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\hu.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_id.pak_a1797256_9b28_4eee_bf49_1ac7ab8f1e5a" Guid="87ae3c0f-f19d-4c69-b9c5-176b25ca6f9e" Win64="no">
+                <File Name="id.pak" Id="_locales_id.pak_a1797256_9b28_4eee_bf49_1ac7ab8f1e5a" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\id.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_it.pak_94ea0f8a_02eb_449a_b92f_46788e272f9c" Guid="7ac26c06-5aaa-40e3-99bd-249feb49ff4f" Win64="no">
+                <File Name="it.pak" Id="_locales_it.pak_94ea0f8a_02eb_449a_b92f_46788e272f9c" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\it.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ja.pak_87906730_4eb8_4690_a798_2a2b45daeb94" Guid="13020538-1a56-474d-ac77-fdfa7a624b5e" Win64="no">
+                <File Name="ja.pak" Id="_locales_ja.pak_87906730_4eb8_4690_a798_2a2b45daeb94" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ja.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_kn.pak_e5e4de09_74c9_47c9_85c0_3101a56e11d8" Guid="daebb405-cf82-41a6-ad3c-80162c5826d8" Win64="no">
+                <File Name="kn.pak" Id="_locales_kn.pak_e5e4de09_74c9_47c9_85c0_3101a56e11d8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\kn.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ko.pak_d9b29e0d_e854_486b_ac6f_aea851ee41d0" Guid="f9afdacd-d6d1-4f29-b461-eb4023927dbe" Win64="no">
+                <File Name="ko.pak" Id="_locales_ko.pak_d9b29e0d_e854_486b_ac6f_aea851ee41d0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ko.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_lt.pak_77d024fd_df1a_47e6_b758_9c492f321e51" Guid="832c97ac-29ae-417c-9edd-3b5c984d2415" Win64="no">
+                <File Name="lt.pak" Id="_locales_lt.pak_77d024fd_df1a_47e6_b758_9c492f321e51" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\lt.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_lv.pak_6fdae2b7_c6cd_4612_80fc_2adb7d1b1d28" Guid="e45ff0bf-b8eb-40b2-9b16-0b3ba29dd29b" Win64="no">
+                <File Name="lv.pak" Id="_locales_lv.pak_6fdae2b7_c6cd_4612_80fc_2adb7d1b1d28" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\lv.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ml.pak_3fc66201_f301_4a20_b276_fde4417f458f" Guid="10f7af08-0b54-4894-8f72-4ef18c3474e0" Win64="no">
+                <File Name="ml.pak" Id="_locales_ml.pak_3fc66201_f301_4a20_b276_fde4417f458f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ml.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_mr.pak_e0a42bfb_4a88_46c7_81e6_203a78ef5233" Guid="6773a310-09ff-4095-ada6-a7c2be98114d" Win64="no">
+                <File Name="mr.pak" Id="_locales_mr.pak_e0a42bfb_4a88_46c7_81e6_203a78ef5233" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\mr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ms.pak_4d0b0f14_3a62_43dd_9c6e_3bddafd44783" Guid="0d292865-1ef5-4cfb-abf5-9921bf9720d7" Win64="no">
+                <File Name="ms.pak" Id="_locales_ms.pak_4d0b0f14_3a62_43dd_9c6e_3bddafd44783" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ms.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_nb.pak_701b36b7_93ea_43a4_9cd7_21f90d4c4ede" Guid="fb65072b-080a-497e-9b91-94447ab074af" Win64="no">
+                <File Name="nb.pak" Id="_locales_nb.pak_701b36b7_93ea_43a4_9cd7_21f90d4c4ede" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\nb.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_nl.pak_3d7620b9_de9e_4f68_b08b_e91bc4c60b39" Guid="8b1c453d-54c1-4d6e-a297-74acf2d5d6ad" Win64="no">
+                <File Name="nl.pak" Id="_locales_nl.pak_3d7620b9_de9e_4f68_b08b_e91bc4c60b39" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\nl.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_pl.pak_c7a503d2_34db_4c77_b816_d5f8e3235c03" Guid="13b62d9a-2c44-4e4c-97dd-64c5304a1ced" Win64="no">
+                <File Name="pl.pak" Id="_locales_pl.pak_c7a503d2_34db_4c77_b816_d5f8e3235c03" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\pl.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_pt_BR.pak_1fd18b95_5214_438b_a8be_23a0007c5374" Guid="7ebf65f6-f173-4b23-9776-7b1e581509a4" Win64="no">
+                <File Name="pt-BR.pak" Id="_locales_pt_BR.pak_1fd18b95_5214_438b_a8be_23a0007c5374" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\pt-BR.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_pt_PT.pak_f58dfd67_ed40_494f_abc4_49ef46838ec6" Guid="3cdd93f3-6289-4615-a885-e404ba048af4" Win64="no">
+                <File Name="pt-PT.pak" Id="_locales_pt_PT.pak_f58dfd67_ed40_494f_abc4_49ef46838ec6" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\pt-PT.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ro.pak_1c2c0397_4d11_4534_90ad_890b137c657e" Guid="01348055-ca31-434b-9ec0-4db3272e6785" Win64="no">
+                <File Name="ro.pak" Id="_locales_ro.pak_1c2c0397_4d11_4534_90ad_890b137c657e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ro.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ru.pak_6fb2930e_c7ec_4abb_b869_a3d62af1bb82" Guid="1f74c347-0e95-4628-abac-be9b469ee796" Win64="no">
+                <File Name="ru.pak" Id="_locales_ru.pak_6fb2930e_c7ec_4abb_b869_a3d62af1bb82" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ru.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sk.pak_13711ec2_4c71_4a39_a81f_28e0a7a062b1" Guid="00d03d05-1269-4de2-8253-620c95d9b26e" Win64="no">
+                <File Name="sk.pak" Id="_locales_sk.pak_13711ec2_4c71_4a39_a81f_28e0a7a062b1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\sk.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sl.pak_dd050ebf_b57c_4ffe_98ca_46cf48f7fc8a" Guid="c7f84ab2-af98-4019-a641-7a3f64a86285" Win64="no">
+                <File Name="sl.pak" Id="_locales_sl.pak_dd050ebf_b57c_4ffe_98ca_46cf48f7fc8a" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\sl.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sr.pak_4efd6d40_3b9e_4718_9cb6_28a401c85d9e" Guid="4070afde-36e8-4f87-907f-690b49793534" Win64="no">
+                <File Name="sr.pak" Id="_locales_sr.pak_4efd6d40_3b9e_4718_9cb6_28a401c85d9e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\sr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sv.pak_f70a63d7_66c9_4f5b_8e4f_9d0cfc0abca2" Guid="9509d860-7b31-4172-b121-99f0a7e13c5d" Win64="no">
+                <File Name="sv.pak" Id="_locales_sv.pak_f70a63d7_66c9_4f5b_8e4f_9d0cfc0abca2" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\sv.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sw.pak_68669d44_e315_463d_b6db_61f3bdf545a5" Guid="3ac38233-6c7e-4fdb-9470-6ac91014603e" Win64="no">
+                <File Name="sw.pak" Id="_locales_sw.pak_68669d44_e315_463d_b6db_61f3bdf545a5" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\sw.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ta.pak_1aaf6d8a_c83c_42ef_ba3b_c49969ec2256" Guid="f9f15a13-627a-4a87-b79c-00fc468d88c3" Win64="no">
+                <File Name="ta.pak" Id="_locales_ta.pak_1aaf6d8a_c83c_42ef_ba3b_c49969ec2256" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\ta.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_te.pak_38d7367b_6ec9_40d3_9c01_9a157037043c" Guid="acd32212-a3d3-4255-b95c-75d17f14ada3" Win64="no">
+                <File Name="te.pak" Id="_locales_te.pak_38d7367b_6ec9_40d3_9c01_9a157037043c" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\te.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_th.pak_772820e5_c75d_4403_b269_08a25d76ce50" Guid="db79da0a-c14b-4b9c-94c1-2f6b484b3f9c" Win64="no">
+                <File Name="th.pak" Id="_locales_th.pak_772820e5_c75d_4403_b269_08a25d76ce50" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\th.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_tr.pak_ac39955b_5712_44bc_a892_761eccae15ee" Guid="0be8ab78-c011-476c-9407-ac846f3de386" Win64="no">
+                <File Name="tr.pak" Id="_locales_tr.pak_ac39955b_5712_44bc_a892_761eccae15ee" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\tr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_uk.pak_99d7be69_f6ab_4fc8_8e15_d6aaf76838cc" Guid="2413eb80-6d7b-41c3-a546-ca26f60a73b7" Win64="no">
+                <File Name="uk.pak" Id="_locales_uk.pak_99d7be69_f6ab_4fc8_8e15_d6aaf76838cc" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\uk.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_vi.pak_1361752d_11b4_47bf_904f_2f2c7f3881e7" Guid="b54507af-c00c-4367-af8b-73191f6c9d28" Win64="no">
+                <File Name="vi.pak" Id="_locales_vi.pak_1361752d_11b4_47bf_904f_2f2c7f3881e7" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\vi.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_zh_CN.pak_18eb742e_436f_45e6_b58d_28db8f307766" Guid="9205a463-eb2f-4a97-9ce1-083abd74660a" Win64="no">
+                <File Name="zh-CN.pak" Id="_locales_zh_CN.pak_18eb742e_436f_45e6_b58d_28db8f307766" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\zh-CN.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_zh_TW.pak_818d298b_67f7_4b37_8958_71bca51a7319" Guid="2fb99e13-aea6-40ff-97c8-d3cc1e69a06a" Win64="no">
+                <File Name="zh-TW.pak" Id="_locales_zh_TW.pak_818d298b_67f7_4b37_8958_71bca51a7319" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\locales\zh-TW.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+            </Directory>
+            <Directory Id="_resources_e97fe750_1994_4fe2_a6bb_c2e0d78b383b" Name="resources">
+              <Directory Id="_resources_app_e667c9ba_32d0_4b0e_9ece_552b88b3df0e" Name="app">
+                <Directory Id="_resources_app_.github_6be1b7e4_b7bd_418b_af7c_6d2c899323cd" Name=".github">
+                  <Directory Id="_resources_app_.github_workflows_cc1b22b9_e06c_4715_8a97_6ba178c6898c" Name="workflows">
+                    <Component Id="_buildApp.yml_84a63d0f_5396_4117_8824_172dc5e12238" Guid="b2c18b79-228e-4910-a9db-7b889458771d" Win64="no">
+                      <File Name="buildApp.yml" Id="_buildApp.yml_84a63d0f_5396_4117_8824_172dc5e12238" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\.github\workflows\buildApp.yml" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+                </Directory>
+
+                <Directory Id="_resources_app_node_modules_4a96e2e6_9545_4f0a_9d17_fcd9a86dffd3" Name="node_modules">
+                  <Directory Id="__bitdisaster_ce23090c_fb64_46e1_990f_c2bfc588760b" Name="@bitdisaster">
+
+                  </Directory>
+                  <Directory Id="__electron_0f32fee6_5fad_4574_b907_90b8029a577c" Name="@electron">
+
+                  </Directory>
+                  <Directory Id="__electron_forge_e5354db1_f17c_4362_a515_c0a8fef71bbd" Name="@electron-forge">
+
+                  </Directory>
+                  <Directory Id="_resources_app_node_modules__malept_8bee50e4_8fa3_41f9_9560_86e27f26cb3b" Name="@malept">
+
+                  </Directory>
+                  <Directory Id="__sindresorhus_ab613661_256d_4580_8e69_57326dcbb013" Name="@sindresorhus">
+
+                  </Directory>
+                  <Directory Id="__szmarczak_8b0447db_c60d_4cec_ab18_728608240439" Name="@szmarczak">
+
+                  </Directory>
+                  <Directory Id="_resources_app_node_modules__types_812c74bb_28a5_44ad_aea8_317e407d6df8" Name="@types">
+
+                  </Directory>
+                  <Directory Id="_resources_app_node_modules_axios_688f9f0d_8685_469c_a3a5_c190a7fd19f2" Name="axios">
+                    <Directory Id="_dist_c41d1ee1_b54a_4070_90dc_00aba441da4d" Name="dist">
+                      <Component Id="_axios.js_85c45b94_bb89_4833_ae97_728635595ec3" Guid="ed8e1b68-6887-4f8a-88e9-e4ba78a38489" Win64="no">
+                        <File Name="axios.js" Id="_axios.js_85c45b94_bb89_4833_ae97_728635595ec3" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\dist\axios.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_axios.map_cf364ebc_dcbe_4d58_b659_be76d49eb3e8" Guid="141fc880-7aec-4808-8615-a964bad29ad2" Win64="no">
+                        <File Name="axios.map" Id="_axios.map_cf364ebc_dcbe_4d58_b659_be76d49eb3e8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\dist\axios.map" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_axios.min.js_5c5a61c5_7c63_41a9_910b_7ff303c92873" Guid="afe52df1-9b57-4535-89e2-173c7dfaafff" Win64="no">
+                        <File Name="axios.min.js" Id="_axios.min.js_5c5a61c5_7c63_41a9_910b_7ff303c92873" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\dist\axios.min.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_axios.min.map_fbeb92dc_8f82_47de_8070_740f4c1c28c1" Guid="57405d79-8a80-4613-bc17-fcbfa5fbf949" Win64="no">
+                        <File Name="axios.min.map" Id="_axios.min.map_fbeb92dc_8f82_47de_8070_740f4c1c28c1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\dist\axios.min.map" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>
+                    <Directory Id="_lib_f261ffb2_e80d_43ac_ae32_ae58e6e3a9cf" Name="lib">
+                      <Directory Id="_adapters_510e4e57_8dad_435a_b89a_a5a1870e4c25" Name="adapters">
+                        <Component Id="_README.md_8c608408_61f2_4e77_a10b_c19b77a42d80" Guid="eaa1d3f5-6b10-4497-a4a1-35bdccb8e24c" Win64="no">
+                          <File Name="README.md" Id="_README.md_8c608408_61f2_4e77_a10b_c19b77a42d80" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\adapters\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_http.js_172a0d3b_fd8f_4db3_b962_aa5cd63ac2e3" Guid="783b31ee-1a53-47fd-97f1-839073430232" Win64="no">
+                          <File Name="http.js" Id="_http.js_172a0d3b_fd8f_4db3_b962_aa5cd63ac2e3" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\adapters\http.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_xhr.js_a1e0447a_c34b_406b_ac06_228c3f299600" Guid="3d6882e3-09df-4f0a-a825-877ad07829c5" Win64="no">
+                          <File Name="xhr.js" Id="_xhr.js_a1e0447a_c34b_406b_ac06_228c3f299600" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\adapters\xhr.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>
+                      <Directory Id="_cancel_32440f92_76c1_4755_b987_fd8532d39151" Name="cancel">
+                        <Component Id="_Cancel.js_f3b7a38a_bb7b_4657_80f7_872de91692f0" Guid="f6f8e765-21a4-445a-a02d-d1d7236dbda4" Win64="no">
+                          <File Name="Cancel.js" Id="_Cancel.js_f3b7a38a_bb7b_4657_80f7_872de91692f0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\cancel\Cancel.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_CancelToken.js_34ecc838_68da_4fb9_ab9e_d235abfc6ef2" Guid="bad8e979-dd3c-463e-9d0e-e828e193dc7a" Win64="no">
+                          <File Name="CancelToken.js" Id="_CancelToken.js_34ecc838_68da_4fb9_ab9e_d235abfc6ef2" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\cancel\CancelToken.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_isCancel.js_5c5ad592_cea5_4323_9a6d_8f25078b606d" Guid="36e7c832-fa95-4a6c-b075-426495b6704a" Win64="no">
+                          <File Name="isCancel.js" Id="_isCancel.js_5c5ad592_cea5_4323_9a6d_8f25078b606d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\cancel\isCancel.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>
+                      <Directory Id="_core_bc18dd52_9fae_47a1_933d_bec46c56b3d5" Name="core">
+                        <Component Id="_Axios.js_dbebe12f_01d6_40c5_846b_e1529b53abe1" Guid="9527e38b-22ba-4518-9e9e-9f759b3e75bf" Win64="no">
+                          <File Name="Axios.js" Id="_Axios.js_dbebe12f_01d6_40c5_846b_e1529b53abe1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\Axios.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_InterceptorManager.js_55b3a77f_fe0c_4159_bb54_d8b65076f690" Guid="dab6102e-9cea-48ad-9f86-a855be0852db" Win64="no">
+                          <File Name="InterceptorManager.js" Id="_InterceptorManager.js_55b3a77f_fe0c_4159_bb54_d8b65076f690" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\InterceptorManager.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_README.md_cebb16c4_f820_43dc_8453_4e86a49c5b13" Guid="f4cee152-4e7f-46ba-afd6-3215f5bf4901" Win64="no">
+                          <File Name="README.md" Id="_README.md_cebb16c4_f820_43dc_8453_4e86a49c5b13" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_buildFullPath.js_cbc977a1_ff5e_4ba3_b75a_8ef89604157e" Guid="3a37c5ae-82df-4c61-8c1b-736e5b4b2b53" Win64="no">
+                          <File Name="buildFullPath.js" Id="_buildFullPath.js_cbc977a1_ff5e_4ba3_b75a_8ef89604157e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\buildFullPath.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_createError.js_5627552e_0f02_4065_8b84_0366c10e23c0" Guid="bb4f5660-90ec-417f-853b-8a72392c6036" Win64="no">
+                          <File Name="createError.js" Id="_createError.js_5627552e_0f02_4065_8b84_0366c10e23c0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\createError.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_dispatchRequest.js_600f4062_2d14_460e_a47a_1e859ee9c4e0" Guid="47e2ef0c-fa95-4b72-860b-fe37600b28a7" Win64="no">
+                          <File Name="dispatchRequest.js" Id="_dispatchRequest.js_600f4062_2d14_460e_a47a_1e859ee9c4e0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\dispatchRequest.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_enhanceError.js_8cbaa400_b60a_4432_ac29_e60f4a6d6f99" Guid="5daaca7b-74b9-4951-bca6-d4351d3b6bb7" Win64="no">
+                          <File Name="enhanceError.js" Id="_enhanceError.js_8cbaa400_b60a_4432_ac29_e60f4a6d6f99" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\enhanceError.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_mergeConfig.js_19c9c7b5_96ce_42e6_8349_f27543ee7407" Guid="b3b46d65-5a83-4568-ab46-ddc664753ad8" Win64="no">
+                          <File Name="mergeConfig.js" Id="_mergeConfig.js_19c9c7b5_96ce_42e6_8349_f27543ee7407" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\mergeConfig.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_settle.js_04ffff10_9b48_4a72_8a3e_b680f0e4068e" Guid="c8087a4c-9d7b-45fe-9488-fbe8838b49c2" Win64="no">
+                          <File Name="settle.js" Id="_settle.js_04ffff10_9b48_4a72_8a3e_b680f0e4068e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\settle.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_transformData.js_86b3b447_edff_418f_9738_641a6a097c76" Guid="dc03bb64-c23d-475c-80a9-8a39e0a33d65" Win64="no">
+                          <File Name="transformData.js" Id="_transformData.js_86b3b447_edff_418f_9738_641a6a097c76" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\core\transformData.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>
+                      <Directory Id="_helpers_6d4528e8_564d_4dd9_be1b_ba5a154f30f3" Name="helpers">
+                        <Component Id="_README.md_3a2a9e76_18d7_4d55_9366_cc5263e253b0" Guid="7fcd51e6-b5fa-4d23-85d0-b2425f07c8f4" Win64="no">
+                          <File Name="README.md" Id="_README.md_3a2a9e76_18d7_4d55_9366_cc5263e253b0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_bind.js_d5b87b15_deb3_42a6_8846_6b60182b6e95" Guid="d4172017-8c1c-4cb5-9ba6-fc1d520b34ae" Win64="no">
+                          <File Name="bind.js" Id="_bind.js_d5b87b15_deb3_42a6_8846_6b60182b6e95" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\bind.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_buildURL.js_9f4afc37_736e_4ec8_bd72_93a5d9db2cad" Guid="3180b7a2-b4f0-49b8-b866-161f032f2811" Win64="no">
+                          <File Name="buildURL.js" Id="_buildURL.js_9f4afc37_736e_4ec8_bd72_93a5d9db2cad" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\buildURL.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_combineURLs.js_49dceffe_dacf_4377_b70e_bba95bb13342" Guid="19a047f0-6e25-4aa3-8211-482be20c6ce1" Win64="no">
+                          <File Name="combineURLs.js" Id="_combineURLs.js_49dceffe_dacf_4377_b70e_bba95bb13342" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\combineURLs.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_cookies.js_b3edaa01_fe89_43d7_a569_dc9cc025044c" Guid="f1479533-ea32-4ba8-a911-3b50b56ddd44" Win64="no">
+                          <File Name="cookies.js" Id="_cookies.js_b3edaa01_fe89_43d7_a569_dc9cc025044c" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\cookies.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_deprecatedMethod.js_da9d4ed7_226c_443f_a1eb_45411d400e61" Guid="936de748-9653-4e31-aac4-0281fe7aa2ba" Win64="no">
+                          <File Name="deprecatedMethod.js" Id="_deprecatedMethod.js_da9d4ed7_226c_443f_a1eb_45411d400e61" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\deprecatedMethod.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_isAbsoluteURL.js_60a0c593_a3e9_40d4_bde3_47764ab74dac" Guid="2227c8ce-64b9-44ee-bf55-b3b87b4b11d3" Win64="no">
+                          <File Name="isAbsoluteURL.js" Id="_isAbsoluteURL.js_60a0c593_a3e9_40d4_bde3_47764ab74dac" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\isAbsoluteURL.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_isAxiosError.js_6c65d186_f37d_45c6_8876_19613b51b823" Guid="2ebfecdb-9798-40ee-9dd1-95bda4d680f9" Win64="no">
+                          <File Name="isAxiosError.js" Id="_isAxiosError.js_6c65d186_f37d_45c6_8876_19613b51b823" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\isAxiosError.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_isURLSameOrigin.js_0153c6ea_0225_45b9_9b91_5bfb4d8ebd89" Guid="4729e368-3430-4164-a7d3-2c81f5715768" Win64="no">
+                          <File Name="isURLSameOrigin.js" Id="_isURLSameOrigin.js_0153c6ea_0225_45b9_9b91_5bfb4d8ebd89" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\isURLSameOrigin.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_normalizeHeaderName.js_d7ee12c3_866d_4938_8ce4_63689fbc971d" Guid="4c654277-728d-4ddd-9dc8-e0e4bdf7de21" Win64="no">
+                          <File Name="normalizeHeaderName.js" Id="_normalizeHeaderName.js_d7ee12c3_866d_4938_8ce4_63689fbc971d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\normalizeHeaderName.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_parseHeaders.js_f33c3e89_590b_4f74_9f8d_47fac6ee2744" Guid="4f2cbf83-2162-41f3-aa56-9878df4ce7f3" Win64="no">
+                          <File Name="parseHeaders.js" Id="_parseHeaders.js_f33c3e89_590b_4f74_9f8d_47fac6ee2744" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\parseHeaders.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_spread.js_728bc893_274e_4c04_befe_58f449059101" Guid="96384765-ae1b-4c2a-ba01-a2238f94cc7c" Win64="no">
+                          <File Name="spread.js" Id="_spread.js_728bc893_274e_4c04_befe_58f449059101" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\helpers\spread.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>                      <Component Id="_axios.js_7ca80b01_bed9_4b10_89be_a8858e1fe759" Guid="05c7b711-d394-4c37-940e-2d1815d24ad7" Win64="no">
+                        <File Name="axios.js" Id="_axios.js_7ca80b01_bed9_4b10_89be_a8858e1fe759" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\axios.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_defaults.js_fe2ede1c_b14b_4d7f_b216_095baa628c43" Guid="08b3d19d-4946-46de-ae2e-bb7d6dfb2bfc" Win64="no">
+                        <File Name="defaults.js" Id="_defaults.js_fe2ede1c_b14b_4d7f_b216_095baa628c43" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\defaults.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_utils.js_092728e9_976e_491d_9cd2_826c7314821d" Guid="14f8a622-7adf-4897-8cf2-a39ef881863c" Win64="no">
+                        <File Name="utils.js" Id="_utils.js_092728e9_976e_491d_9cd2_826c7314821d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\lib\utils.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>
+                    <Component Id="_CHANGELOG.md_c87ae655_9623_4b6c_b60d_417d59b73879" Guid="e09ed1db-d973-4c5a-bc11-9e64ea1e9db3" Win64="no">
+                      <File Name="CHANGELOG.md" Id="_CHANGELOG.md_c87ae655_9623_4b6c_b60d_417d59b73879" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\CHANGELOG.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_LICENSE_f5a4105d_5857_4467_9bda_4119078577fc" Guid="02d940e9-72d0-4474-9c7b-a294d243dc5a" Win64="no">
+                      <File Name="LICENSE" Id="_LICENSE_f5a4105d_5857_4467_9bda_4119078577fc" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\LICENSE" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_README.md_5478f4d0_be52_4e32_a880_f5abd44a0015" Guid="96e80179-4263-4f4c-9441-3c237366e45c" Win64="no">
+                      <File Name="README.md" Id="_README.md_5478f4d0_be52_4e32_a880_f5abd44a0015" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_UPGRADE_GUIDE.md_e05140f2_dbc6_4001_a011_017758b58f83" Guid="7d32919d-9aae-4ec9-9857-b0722a78ba59" Win64="no">
+                      <File Name="UPGRADE_GUIDE.md" Id="_UPGRADE_GUIDE.md_e05140f2_dbc6_4001_a011_017758b58f83" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\UPGRADE_GUIDE.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_index.d.ts_1bc7bc84_cbc3_482b_9f93_b3fbb570d663" Guid="df35fc7c-fde4-4cd6-abd9-b5b724e1f2c6" Win64="no">
+                      <File Name="index.d.ts" Id="_index.d.ts_1bc7bc84_cbc3_482b_9f93_b3fbb570d663" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\index.d.ts" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_index.js_8eb0262b_467a_4d40_8e37_928f6f04eee4" Guid="b5c0c7d6-846c-46fd-90b9-da1e28f265da" Win64="no">
+                      <File Name="index.js" Id="_index.js_8eb0262b_467a_4d40_8e37_928f6f04eee4" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_d61b8ad5_fa70_4481_a892_83cd56d97331" Guid="d6f16c14-2042-4990-988d-cf5b69b3ac9f" Win64="no">
+                      <File Name="package.json" Id="_package.json_d61b8ad5_fa70_4481_a892_83cd56d97331" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\axios\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+
+                  <Directory Id="_resources_app_node_modules_debug_8e34e4a6_4c72_41fe_b02f_0a9a60bd6ad6" Name="debug">
+                    <Directory Id="_src_68a5d9dc_3188_43af_9804_24e8e5371a88" Name="src">
+                      <Component Id="_browser.js_7dc5a50a_c786_49f5_99ec_b420f09092e1" Guid="a396cd9f-deec-4250-a100-0530bb12508c" Win64="no">
+                        <File Name="browser.js" Id="_browser.js_7dc5a50a_c786_49f5_99ec_b420f09092e1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\src\browser.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_debug.js_8fe3b2da_aad4_40ef_b2d9_0dd0b53efc94" Guid="2fa7cba8-ac1b-44a0-9523-c485603dd16e" Win64="no">
+                        <File Name="debug.js" Id="_debug.js_8fe3b2da_aad4_40ef_b2d9_0dd0b53efc94" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\src\debug.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_index.js_eb81b4f6_2e80_4e9a_b731_f83d78733ffa" Guid="2a1d2fb1-b60c-44bd-9fce-c1b54113efe6" Win64="no">
+                        <File Name="index.js" Id="_index.js_eb81b4f6_2e80_4e9a_b731_f83d78733ffa" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\src\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_inspector_log.js_bdfb3c65_f285_4a21_b5be_431df47559e1" Guid="6c8a3cf3-2875-4e6e-9c02-73a2a7478d78" Win64="no">
+                        <File Name="inspector-log.js" Id="_inspector_log.js_bdfb3c65_f285_4a21_b5be_431df47559e1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\src\inspector-log.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_node.js_61662752_acc2_4b17_a823_a775915e383a" Guid="8ed9fdb4-eb59-4ff8-91a6-d9f6016d0a46" Win64="no">
+                        <File Name="node.js" Id="_node.js_61662752_acc2_4b17_a823_a775915e383a" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\src\node.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>                    <Component Id="_.coveralls.yml_7eb03d86_b9a2_47f4_84f1_af952e35d5af" Guid="41f38fc8-f47f-4784-9053-120fd5aee669" Win64="no">
+                      <File Name=".coveralls.yml" Id="_.coveralls.yml_7eb03d86_b9a2_47f4_84f1_af952e35d5af" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\.coveralls.yml" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_.eslintrc_eba02e22_b7dc_4d84_8bf4_91c9bafac886" Guid="a55610b0-690d-433f-bd9a-975ca175bcf4" Win64="no">
+                      <File Name=".eslintrc" Id="_.eslintrc_eba02e22_b7dc_4d84_8bf4_91c9bafac886" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\.eslintrc" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_.npmignore_bad6b98c_1c7f_4087_9ebf_acd1d3ec4d11" Guid="b0ea9652-ab20-407d-88cb-00c5fc591c41" Win64="no">
+                      <File Name=".npmignore" Id="_.npmignore_bad6b98c_1c7f_4087_9ebf_acd1d3ec4d11" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\.npmignore" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_.travis.yml_6ea4a9b8_8bbb_4222_bd3d_13f56adc8562" Guid="fef9f4e4-373a-4921-9607-d66cc78ea7bb" Win64="no">
+                      <File Name=".travis.yml" Id="_.travis.yml_6ea4a9b8_8bbb_4222_bd3d_13f56adc8562" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\.travis.yml" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_CHANGELOG.md_736904dd_2307_4d9d_8a09_656490426578" Guid="1fc59596-371b-4964-a997-b7d85d7071c0" Win64="no">
+                      <File Name="CHANGELOG.md" Id="_CHANGELOG.md_736904dd_2307_4d9d_8a09_656490426578" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\CHANGELOG.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_LICENSE_9f25feba_82fd_4736_8470_4b25418012a0" Guid="1430bcfb-5fd0-4883-86ad-3226d39c90ed" Win64="no">
+                      <File Name="LICENSE" Id="_LICENSE_9f25feba_82fd_4736_8470_4b25418012a0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\LICENSE" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_Makefile_f6422c1d_b80a_48df_9390_51123068cae7" Guid="75985f3d-065c-4089-92c2-9e3dd639e2d2" Win64="no">
+                      <File Name="Makefile" Id="_Makefile_f6422c1d_b80a_48df_9390_51123068cae7" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\Makefile" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_README.md_31d0abcf_ec4f_4bc8_95b4_c0008d5313fd" Guid="1acba05f-ecdf-4381-88c0-52188ac5b05f" Win64="no">
+                      <File Name="README.md" Id="_README.md_31d0abcf_ec4f_4bc8_95b4_c0008d5313fd" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_component.json_df2718b7_3f96_41eb_9f40_e5e5d9e474e2" Guid="9e931b43-ba85-4a15-8f9a-77b676702bd9" Win64="no">
+                      <File Name="component.json" Id="_component.json_df2718b7_3f96_41eb_9f40_e5e5d9e474e2" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\component.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_karma.conf.js_078f32a8_3985_412d_8af0_b539c0d3913d" Guid="88b5a1ed-3476-4af9-a27c-5750837e9839" Win64="no">
+                      <File Name="karma.conf.js" Id="_karma.conf.js_078f32a8_3985_412d_8af0_b539c0d3913d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\karma.conf.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_node.js_743ea9c7_73f4_4855_888a_f2693851c802" Guid="dd0d0313-a15c-4291-8570-db48091e1f83" Win64="no">
+                      <File Name="node.js" Id="_node.js_743ea9c7_73f4_4855_888a_f2693851c802" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\node.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_a5b29f19_4ce1_4b08_9a5d_cb6d60763c9c" Guid="4b0352b2-e666-4b45-bf45-75e5885b399c" Win64="no">
+                      <File Name="package.json" Id="_package.json_a5b29f19_4ce1_4b08_9a5d_cb6d60763c9c" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\debug\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+
+                  <Directory Id="_electron_is_dev_9fcf4e0c_f164_4c77_8013_a3452ffb913c" Name="electron-is-dev">
+                    <Component Id="_index.js_7b88ba45_18ea_4b0b_bbd9_de77d439fa96" Guid="77565c44-ae4c-4049-b307-a41eb3e54671" Win64="no">
+                      <File Name="index.js" Id="_index.js_7b88ba45_18ea_4b0b_bbd9_de77d439fa96" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-is-dev\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_license_0d078497_9e74_4b03_82fb_ed387e02cb33" Guid="ecdc4baf-5945-4890-b02a-7eb9be881dff" Win64="no">
+                      <File Name="license" Id="_license_0d078497_9e74_4b03_82fb_ed387e02cb33" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-is-dev\license" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_6924363f_9a00_4f47_b5fa_21eac1ac6aa1" Guid="c5e334a7-e75a-410d-88a1-65b509d2121d" Win64="no">
+                      <File Name="package.json" Id="_package.json_6924363f_9a00_4f47_b5fa_21eac1ac6aa1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-is-dev\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_readme.md_3b69028b_00de_4dcc_aeeb_1f57cb5c3099" Guid="9777babc-8956-475e-9ddf-c636156a08fe" Win64="no">
+                      <File Name="readme.md" Id="_readme.md_3b69028b_00de_4dcc_aeeb_1f57cb5c3099" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-is-dev\readme.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+                  <Directory Id="_electron_squirrel_startup_c8919b9f_aeee_44e9_a97c_6a4a5766e910" Name="electron-squirrel-startup">
+                    <Directory Id="_test_9a28e1b7_0d14_43da_96f7_7c0c2c55c361" Name="test">
+                      <Component Id="_index.test.js_a7ed8c7c_9843_4a4c_9a12_b4e174d61c7b" Guid="7fa12d61-4861-4443-a91d-f5149fd20076" Win64="no">
+                        <File Name="index.test.js" Id="_index.test.js_a7ed8c7c_9843_4a4c_9a12_b4e174d61c7b" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\test\index.test.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_mocha.opts_3a1fa8ca_3f3f_4980_871b_fb1e54062c78" Guid="4d9c2227-02a2-4ac2-9e2a-9404b9aec818" Win64="no">
+                        <File Name="mocha.opts" Id="_mocha.opts_3a1fa8ca_3f3f_4980_871b_fb1e54062c78" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\test\mocha.opts" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>                    <Component Id="_.eslintrc_19197ea0_f991_4bb2_a9e8_28d0e06f383b" Guid="e01fe5c0-7cf7-45fc-ade2-4f4cd17159bc" Win64="no">
+                      <File Name=".eslintrc" Id="_.eslintrc_19197ea0_f991_4bb2_a9e8_28d0e06f383b" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\.eslintrc" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_.jsfmtrc_448d6b99_2d18_4077_ad20_f2ea24027e34" Guid="723a6c9b-3117-48ed-a8d7-910eeeab8f04" Win64="no">
+                      <File Name=".jsfmtrc" Id="_.jsfmtrc_448d6b99_2d18_4077_ad20_f2ea24027e34" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\.jsfmtrc" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_.npmignore_74c9f6cc_9f3c_4c96_9bf6_b76e4b742502" Guid="e714f58b-b150-4f1e-af6b-05bbad445e9f" Win64="no">
+                      <File Name=".npmignore" Id="_.npmignore_74c9f6cc_9f3c_4c96_9bf6_b76e4b742502" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\.npmignore" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_.travis.yml_8ce8e95c_6d7c_4397_9e16_570dd31ec37d" Guid="6ef70512-cd3f-45b2-b8fa-8eb1123df8fd" Win64="no">
+                      <File Name=".travis.yml" Id="_.travis.yml_8ce8e95c_6d7c_4397_9e16_570dd31ec37d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\.travis.yml" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_LICENSE_1253d7c1_3c89_4c43_8d21_6d327d549e46" Guid="8bb0504f-75c8-458e-95ed-07a6119c77f5" Win64="no">
+                      <File Name="LICENSE" Id="_LICENSE_1253d7c1_3c89_4c43_8d21_6d327d549e46" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\LICENSE" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_README.md_6a846f22_5a94_4869_9e71_7b53879b2282" Guid="26fa948d-94d7-486f-b63e-fc9e294ea156" Win64="no">
+                      <File Name="README.md" Id="_README.md_6a846f22_5a94_4869_9e71_7b53879b2282" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_appveyor.yml_acce1f12_6e5d_442d_afe3_0722a10e26b4" Guid="2f57c6a2-5c5c-4955-a037-73bc075b480d" Win64="no">
+                      <File Name="appveyor.yml" Id="_appveyor.yml_acce1f12_6e5d_442d_afe3_0722a10e26b4" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\appveyor.yml" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_index.js_23fbaeaf_b8a9_490b_9c23_9b486505bb53" Guid="5f713864-bdf1-43eb-bb7a-e349eb7f58ba" Win64="no">
+                      <File Name="index.js" Id="_index.js_23fbaeaf_b8a9_490b_9c23_9b486505bb53" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_5e51c10a_e3cd_461d_917d_ed708a413d57" Guid="0e2beb08-e81a-4d46-9f74-d1edf52a958a" Win64="no">
+                      <File Name="package.json" Id="_package.json_5e51c10a_e3cd_461d_917d_ed708a413d57" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\electron-squirrel-startup\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+
+                  <Directory Id="_exe_icon_extractor_11727ade_dceb_41b8_b86b_b552466c197c" Name="exe-icon-extractor">
+                    <Directory Id="_11.2.1_7fe531fe_bc59_4517_9f12_160c9d0ea2af" Name="11.2.1">
+                      <Directory Id="_arm64_d757ed75_8999_498f_90ef_5fc561e13307" Name="arm64">
+                        <Component Id="_node.lib_2b2df1af_4ad9_41ba_9954_b7c076cc9104" Guid="ed546ddd-c8bf-407a-9b72-b1803095b080" Win64="no">
+                          <File Name="node.lib" Id="_node.lib_2b2df1af_4ad9_41ba_9954_b7c076cc9104" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\arm64\node.lib" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>
+                      <Directory Id="_ia32_f757cadf_a9b1_4bc6_bafa_42ed1238960b" Name="ia32">
+                        <Component Id="_node.lib_820dfe02_b9a9_4908_a6a4_511fb1b5d3fb" Guid="7b212c26-5908-4500-8503-45feb62edf6c" Win64="no">
+                          <File Name="node.lib" Id="_node.lib_820dfe02_b9a9_4908_a6a4_511fb1b5d3fb" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\ia32\node.lib" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>
+                      <Directory Id="_include_d354be93_7a74_45a5_93b1_5688d2943b30" Name="include">
+                        <Directory Id="_node_e15465e4_a3bc_49d7_b6c2_7135bed12a2c" Name="node">
+                          <Directory Id="_cppgc_a38a279c_2158_4a06_908e_d1b622818fc4" Name="cppgc">
+                            <Directory Id="_internal_e853a7f3_1c84_405f_a963_f15a9060e0ba" Name="internal">
+                              <Component Id="_api_constants.h_f96e3861_badd_4d99_a71f_7e3ccaf006ff" Guid="09938a5a-b78d-43c1-a87f-d0e026980d9d" Win64="no">
+                                <File Name="api-constants.h" Id="_api_constants.h_f96e3861_badd_4d99_a71f_7e3ccaf006ff" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\api-constants.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_atomic_entry_flag.h_fa354b35_1b1b_458c_a9f3_00b9546e88e8" Guid="88976f3b-f372-47ec-96c8-7c01a16e747c" Win64="no">
+                                <File Name="atomic-entry-flag.h" Id="_atomic_entry_flag.h_fa354b35_1b1b_458c_a9f3_00b9546e88e8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\atomic-entry-flag.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_caged_heap_local_data.h_31ce1832_bdf4_4984_80e9_0ad0c6223b5d" Guid="5f0ae0ff-a426-4c6f-9f70-be449dfe3bfd" Win64="no">
+                                <File Name="caged-heap-local-data.h" Id="_caged_heap_local_data.h_31ce1832_bdf4_4984_80e9_0ad0c6223b5d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\caged-heap-local-data.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_compiler_specific.h_4c3a0ec4_4c18_4446_a60e_0bafb43f2b15" Guid="aa338062-45a2-4142-9432-cc3c3d606fa2" Win64="no">
+                                <File Name="compiler-specific.h" Id="_compiler_specific.h_4c3a0ec4_4c18_4446_a60e_0bafb43f2b15" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\compiler-specific.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_finalizer_trait.h_75df439e_b1f8_4cb3_9e91_25102eb7bff0" Guid="c8f9a3f8-bf58-467d-98e5-1f014871f832" Win64="no">
+                                <File Name="finalizer-trait.h" Id="_finalizer_trait.h_75df439e_b1f8_4cb3_9e91_25102eb7bff0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\finalizer-trait.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_gc_info.h_0bead927_8e26_41be_8f08_302031dccd25" Guid="05f28755-a951-4df7-a241-4cc84577a820" Win64="no">
+                                <File Name="gc-info.h" Id="_gc_info.h_0bead927_8e26_41be_8f08_302031dccd25" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\gc-info.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_logging.h_e8daaa38_f6f2_41a4_9943_3dd3ff11ea85" Guid="ff7ca6f1-5a3b-4475-a3ee-1900ee34f031" Win64="no">
+                                <File Name="logging.h" Id="_logging.h_e8daaa38_f6f2_41a4_9943_3dd3ff11ea85" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\logging.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_persistent_node.h_d917dac9_5352_46d3_8741_256586659e7c" Guid="dffb0c40-cf30-4d2d-ba97-b6da71d28093" Win64="no">
+                                <File Name="persistent-node.h" Id="_persistent_node.h_d917dac9_5352_46d3_8741_256586659e7c" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\persistent-node.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_pointer_policies.h_c011584f_56e3_4ffe_81ff_30cd20a323e2" Guid="86498461-3ac2-4b85-b952-a11908a89152" Win64="no">
+                                <File Name="pointer-policies.h" Id="_pointer_policies.h_c011584f_56e3_4ffe_81ff_30cd20a323e2" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\pointer-policies.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_prefinalizer_handler.h_e0e62156_5777_4cc0_9c20_c52d2e513b95" Guid="9fef3a2c-7b73-42c1-b86d-5760b1ab6f84" Win64="no">
+                                <File Name="prefinalizer-handler.h" Id="_prefinalizer_handler.h_e0e62156_5777_4cc0_9c20_c52d2e513b95" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\prefinalizer-handler.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_process_heap.h_7511112a_12a9_4466_b335_f657d651f6d7" Guid="d18c004b-c5f5-42c5-92a3-adb7cfd5ce88" Win64="no">
+                                <File Name="process-heap.h" Id="_process_heap.h_7511112a_12a9_4466_b335_f657d651f6d7" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\process-heap.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_write_barrier.h_1290b3fe_e00d_455f_88d3_aa04887eb756" Guid="df23044f-735f-4501-b001-52f8681caecb" Win64="no">
+                                <File Name="write-barrier.h" Id="_write_barrier.h_1290b3fe_e00d_455f_88d3_aa04887eb756" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\internal\write-barrier.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                            </Directory>                            <Component Id="_allocation.h_b21e6db0_48c6_4a21_8bf4_5856cdde0e0e" Guid="509d6296-9e11-4cb1-a419-247316643e5c" Win64="no">
+                              <File Name="allocation.h" Id="_allocation.h_b21e6db0_48c6_4a21_8bf4_5856cdde0e0e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\allocation.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_common.h_c78adabf_26c4_40b0_8fcf_9d0d573709af" Guid="cc1b0718-7c6b-4506-a80e-c75490c92c15" Win64="no">
+                              <File Name="common.h" Id="_common.h_c78adabf_26c4_40b0_8fcf_9d0d573709af" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\common.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_custom_space.h_2b2481e6_d2f0_4c28_84ea_e64fd7af9010" Guid="23393100-1e26-4465-868c-90be97c649a1" Win64="no">
+                              <File Name="custom-space.h" Id="_custom_space.h_2b2481e6_d2f0_4c28_84ea_e64fd7af9010" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\custom-space.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_garbage_collected.h_88d5bd10_a112_4004_a2c8_5d052446c212" Guid="835acb66-e2af-4631-b44b-e3a674549346" Win64="no">
+                              <File Name="garbage-collected.h" Id="_garbage_collected.h_88d5bd10_a112_4004_a2c8_5d052446c212" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\garbage-collected.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_heap.h_d5f49609_3b12_4de8_8bfc_7c5d8d42f56a" Guid="58c84511-bc10-4405-81b8-489bfa7512c0" Win64="no">
+                              <File Name="heap.h" Id="_heap.h_d5f49609_3b12_4de8_8bfc_7c5d8d42f56a" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\heap.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_liveness_broker.h_2967169a_4226_4b4e_8bd2_6149c7c348e1" Guid="0f5bb112-8250-4161-bd0a-174ca91ca487" Win64="no">
+                              <File Name="liveness-broker.h" Id="_liveness_broker.h_2967169a_4226_4b4e_8bd2_6149c7c348e1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\liveness-broker.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_macros.h_c25fa76b_e6e3_4d3a_8b15_1f1c9284c860" Guid="57d00757-0db2-44c4-8ff5-a3bb9e7b7f9c" Win64="no">
+                              <File Name="macros.h" Id="_macros.h_c25fa76b_e6e3_4d3a_8b15_1f1c9284c860" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\macros.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_member.h_63aecfe3_2a21_4e3f_b62b_6c012d7f7fc1" Guid="10afb8d2-5d08-4038-8727-4958c467fafb" Win64="no">
+                              <File Name="member.h" Id="_member.h_63aecfe3_2a21_4e3f_b62b_6c012d7f7fc1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\member.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_persistent.h_4ffdab88_994c_4386_aac9_ea237ccdce47" Guid="06105d3d-8e15-4bbd-a58e-0c3d983a35b6" Win64="no">
+                              <File Name="persistent.h" Id="_persistent.h_4ffdab88_994c_4386_aac9_ea237ccdce47" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\persistent.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_platform.h_de1f3703_de90_4190_a19b_6df3c253aa94" Guid="c575cd20-f765-4c78-90c2-f4530e0f5f26" Win64="no">
+                              <File Name="platform.h" Id="_platform.h_de1f3703_de90_4190_a19b_6df3c253aa94" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\platform.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_prefinalizer.h_b8a5a61f_7cf9_428c_9233_ecb4a7977fb4" Guid="b6617bb4-d232-4d78-963d-38c59ab490d1" Win64="no">
+                              <File Name="prefinalizer.h" Id="_prefinalizer.h_b8a5a61f_7cf9_428c_9233_ecb4a7977fb4" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\prefinalizer.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_source_location.h_37a34217_1500_44dc_9b5e_843ee8659f91" Guid="0d538c2f-d635-4040-963a-67ea97337e53" Win64="no">
+                              <File Name="source-location.h" Id="_source_location.h_37a34217_1500_44dc_9b5e_843ee8659f91" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\source-location.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_trace_trait.h_40937b9b_3753_4562_9b05_7385daa76f39" Guid="34887370-1062-48af-90f4-752038ffafb7" Win64="no">
+                              <File Name="trace-trait.h" Id="_trace_trait.h_40937b9b_3753_4562_9b05_7385daa76f39" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\trace-trait.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_type_traits.h_6d033605_4b75_4dab_8823_3e99b769c9e1" Guid="0956fe85-eaf3-4277-80d7-e08369dc501c" Win64="no">
+                              <File Name="type-traits.h" Id="_type_traits.h_6d033605_4b75_4dab_8823_3e99b769c9e1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\type-traits.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_visitor.h_e5ad1030_9fba_4856_ad81_a9a1c2ade5f1" Guid="a8dea321-aa59-4d55-982f-ab5c695b973e" Win64="no">
+                              <File Name="visitor.h" Id="_visitor.h_e5ad1030_9fba_4856_ad81_a9a1c2ade5f1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\cppgc\visitor.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                          </Directory>
+
+                          <Directory Id="_libplatform_0d65c918_77b4_46a3_9248_cd3ec1fb698e" Name="libplatform">
+                            <Component Id="_libplatform_export.h_74f3a3be_25ac_4d8a_91a7_2e537d2b63cd" Guid="dfb292d5-a55a-42dc-afa1-95f48542472f" Win64="no">
+                              <File Name="libplatform-export.h" Id="_libplatform_export.h_74f3a3be_25ac_4d8a_91a7_2e537d2b63cd" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\libplatform\libplatform-export.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_libplatform.h_00a924a0_b31e_4dc5_bdfb_3306908769d3" Guid="0e626432-4233-4d11-8480-c2199f132255" Win64="no">
+                              <File Name="libplatform.h" Id="_libplatform.h_00a924a0_b31e_4dc5_bdfb_3306908769d3" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\libplatform\libplatform.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_v8_tracing.h_442d5826_129d_4b3a_958e_82e438ebbc5f" Guid="d2450c43-fa50-4dfe-b118-78219b7560c4" Win64="no">
+                              <File Name="v8-tracing.h" Id="_v8_tracing.h_442d5826_129d_4b3a_958e_82e438ebbc5f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\libplatform\v8-tracing.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                          </Directory>
+                          <Directory Id="_uv_2ce9f289_a5e0_41d9_a9cb_b9deb29da849" Name="uv">
+                            <Component Id="_aix.h_f374ea5a_faad_4922_9a9e_9e0e85189fc1" Guid="09e7f0cf-9326-4b0a-9e01-abc0630bf536" Win64="no">
+                              <File Name="aix.h" Id="_aix.h_f374ea5a_faad_4922_9a9e_9e0e85189fc1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\aix.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_android_ifaddrs.h_ad03ac25_caf3_4824_a891_50996481fe03" Guid="4b34f7cc-46a3-4b67-9ecc-131f5d2b7ade" Win64="no">
+                              <File Name="android-ifaddrs.h" Id="_android_ifaddrs.h_ad03ac25_caf3_4824_a891_50996481fe03" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\android-ifaddrs.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_bsd.h_61b303c6_0b90_4576_9d26_9d63cfe2ad82" Guid="e3ede1a7-8bb3-4fa2-ac56-27a3f66f00e4" Win64="no">
+                              <File Name="bsd.h" Id="_bsd.h_61b303c6_0b90_4576_9d26_9d63cfe2ad82" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\bsd.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_darwin.h_c634204a_7d78_40f2_a349_0f74091e017b" Guid="1d9f06fb-3ff9-4ff9-a582-a6d8ff20e66c" Win64="no">
+                              <File Name="darwin.h" Id="_darwin.h_c634204a_7d78_40f2_a349_0f74091e017b" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\darwin.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_errno.h_60edc9c4_0ce3_4e36_b697_2d8af03c47dd" Guid="95e233b2-b135-464a-ba85-b656416a5319" Win64="no">
+                              <File Name="errno.h" Id="_errno.h_60edc9c4_0ce3_4e36_b697_2d8af03c47dd" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\errno.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_linux.h_dd5e5612_4831_4958_ad5b_4b2e0c8f76f7" Guid="fff993a9-be89-4961-8291-86b7c3d350b8" Win64="no">
+                              <File Name="linux.h" Id="_linux.h_dd5e5612_4831_4958_ad5b_4b2e0c8f76f7" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\linux.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_os390.h_8f99ee11_0ac5_42ed_8c19_64839bd0c535" Guid="2133a2dd-6b8f-4f81-aa19-8bd182f7dd0c" Win64="no">
+                              <File Name="os390.h" Id="_os390.h_8f99ee11_0ac5_42ed_8c19_64839bd0c535" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\os390.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_posix.h_c220eac2_73af_46cd_973f_5c4e0f8f98c8" Guid="f7c4ef8d-bb1e-49cd-b6fb-76cb7112f017" Win64="no">
+                              <File Name="posix.h" Id="_posix.h_c220eac2_73af_46cd_973f_5c4e0f8f98c8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\posix.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_stdint_msvc2008.h_51c9bee0_fc82_4fd2_a8ae_66c140ababf5" Guid="e5ce6291-7b0e-4352-a0f1-3f2dda171a68" Win64="no">
+                              <File Name="stdint-msvc2008.h" Id="_stdint_msvc2008.h_51c9bee0_fc82_4fd2_a8ae_66c140ababf5" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\stdint-msvc2008.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_sunos.h_43e5b13e_0005_444b_b4e9_0830dd6ddca4" Guid="44a48b35-a260-469f-87e2-8bdbbce72a00" Win64="no">
+                              <File Name="sunos.h" Id="_sunos.h_43e5b13e_0005_444b_b4e9_0830dd6ddca4" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\sunos.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_threadpool.h_2fbe9ee0_ec59_4054_be64_eb7c7ec7d6a5" Guid="2604aed4-b78a-49bf-8fd9-31720b19a8d7" Win64="no">
+                              <File Name="threadpool.h" Id="_threadpool.h_2fbe9ee0_ec59_4054_be64_eb7c7ec7d6a5" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\threadpool.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_tree.h_2de1b183_12eb_48cf_8c17_e59f14043b3f" Guid="f0f9e0a1-7159-4ba3-8fbc-577e45c76b1d" Win64="no">
+                              <File Name="tree.h" Id="_tree.h_2de1b183_12eb_48cf_8c17_e59f14043b3f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\tree.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_unix.h_e6a080e9_6df8_4b4a_aa97_92f6f0b6bd73" Guid="74aa95fa-b233-46f9-bd15-64ecc29e95ba" Win64="no">
+                              <File Name="unix.h" Id="_unix.h_e6a080e9_6df8_4b4a_aa97_92f6f0b6bd73" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\unix.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_version.h_0a3d1dc9_f71c_40ce_ac9c_899c14469aef" Guid="0b6408ef-08bc-443b-8dca-5c60121282d7" Win64="no">
+                              <File Name="version.h" Id="_version.h_0a3d1dc9_f71c_40ce_ac9c_899c14469aef" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\version.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_win.h_35f6ce25_a788_4fc9_b92e_4c7394ea007d" Guid="88278d09-e561-445b-95f6-a856e15810b1" Win64="no">
+                              <File Name="win.h" Id="_win.h_35f6ce25_a788_4fc9_b92e_4c7394ea007d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv\win.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                          </Directory>                          <Component Id="_common.gypi_d3e057c5_5f45_41ca_9a1a_73170c027b82" Guid="6985941c-38b3-47ba-8a23-922b221d8130" Win64="no">
+                            <File Name="common.gypi" Id="_common.gypi_d3e057c5_5f45_41ca_9a1a_73170c027b82" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\common.gypi" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_config.gypi_f3820a66_3d5c_4626_a344_3bbba7763fbc" Guid="9e5cca33-dfe1-4742-a81b-a2355b0f0af7" Win64="no">
+                            <File Name="config.gypi" Id="_config.gypi_f3820a66_3d5c_4626_a344_3bbba7763fbc" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\config.gypi" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_js_native_api.h_e74c962a_81d9_45b7_86ab_0a4752ec9f1e" Guid="d065563b-6f83-4a91-a856-e937e4854506" Win64="no">
+                            <File Name="js_native_api.h" Id="_js_native_api.h_e74c962a_81d9_45b7_86ab_0a4752ec9f1e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\js_native_api.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_js_native_api_types.h_60ef4c7f_4c19_4df8_9b16_94a95572fb61" Guid="4361fcca-4809-4bde-bef3-e144ca201b8f" Win64="no">
+                            <File Name="js_native_api_types.h" Id="_js_native_api_types.h_60ef4c7f_4c19_4df8_9b16_94a95572fb61" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\js_native_api_types.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_node.h_bea2b355_97b8_4ced_b44c_c7d314d5e713" Guid="a6d92ad2-c471-415c-bede-02ffa7ab9de1" Win64="no">
+                            <File Name="node.h" Id="_node.h_bea2b355_97b8_4ced_b44c_c7d314d5e713" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\node.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_node_api.h_f4521ace_8bd1_443a_ad85_f88bf952a14d" Guid="c9f3a5d4-5bf2-4250-b6bd-5aed12126fe0" Win64="no">
+                            <File Name="node_api.h" Id="_node_api.h_f4521ace_8bd1_443a_ad85_f88bf952a14d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\node_api.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_node_api_types.h_2e507fb3_bb0c_4273_aaac_a1d723f184bd" Guid="69aa3356-fc30-45bc-8d9c-90e22bb97fc6" Win64="no">
+                            <File Name="node_api_types.h" Id="_node_api_types.h_2e507fb3_bb0c_4273_aaac_a1d723f184bd" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\node_api_types.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_node_buffer.h_f2c3fb05_7016_4512_ba90_2ac41b357a1d" Guid="3cd1ffcb-23a3-4f7f-ad94-4d47fd17d38d" Win64="no">
+                            <File Name="node_buffer.h" Id="_node_buffer.h_f2c3fb05_7016_4512_ba90_2ac41b357a1d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\node_buffer.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_node_object_wrap.h_e5ff86aa_dad4_41ee_927e_b4b8bb23dcb4" Guid="a612f897-d9ca-42e1-bc63-29e8e5b21f61" Win64="no">
+                            <File Name="node_object_wrap.h" Id="_node_object_wrap.h_e5ff86aa_dad4_41ee_927e_b4b8bb23dcb4" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\node_object_wrap.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_node_version.h_bebd45bd_213d_4f44_b5ea_707feee20f05" Guid="11f5f78d-9372-4a1b-bac8-64edfa812238" Win64="no">
+                            <File Name="node_version.h" Id="_node_version.h_bebd45bd_213d_4f44_b5ea_707feee20f05" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\node_version.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_uv.h_3c8d29b1_dc5b_40b1_a751_9735375007fe" Guid="2d107b0f-0497-4ff6-9735-748f4109b1ae" Win64="no">
+                            <File Name="uv.h" Id="_uv.h_3c8d29b1_dc5b_40b1_a751_9735375007fe" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\uv.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_cppgc.h_b0cfb1a5_eca2_4899_94bf_3785d194ef2b" Guid="fc711f6f-07b9-4114-aaa2-26f1752789f0" Win64="no">
+                            <File Name="v8-cppgc.h" Id="_v8_cppgc.h_b0cfb1a5_eca2_4899_94bf_3785d194ef2b" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-cppgc.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_fast_api_calls.h_50c91f08_2ba3_481f_b82a_9c40efe622b4" Guid="ea5ddd9d-f64b-4918-adc2-b3b4e5a0c9db" Win64="no">
+                            <File Name="v8-fast-api-calls.h" Id="_v8_fast_api_calls.h_50c91f08_2ba3_481f_b82a_9c40efe622b4" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-fast-api-calls.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_internal.h_a4b07973_1e01_45e9_9031_ce13c2062583" Guid="0232dbd6-02e0-40fa-999c-0b709a9bd210" Win64="no">
+                            <File Name="v8-internal.h" Id="_v8_internal.h_a4b07973_1e01_45e9_9031_ce13c2062583" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-internal.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_platform.h_51b7e239_06fc_483b_9e21_d31f1108d2c3" Guid="67e36a35-16c8-4998-9e7b-96e574bf1e67" Win64="no">
+                            <File Name="v8-platform.h" Id="_v8_platform.h_51b7e239_06fc_483b_9e21_d31f1108d2c3" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-platform.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_profiler.h_0d7e8e7b_eda1_4aa1_bca1_00d50b6cd647" Guid="9f25c5bb-5491-46e2-a3b8-e81051f6986f" Win64="no">
+                            <File Name="v8-profiler.h" Id="_v8_profiler.h_0d7e8e7b_eda1_4aa1_bca1_00d50b6cd647" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-profiler.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_util.h_4da38a75_9044_4651_a904_86e347bc7575" Guid="88012e1b-fb1d-4fca-bf6e-557898041d60" Win64="no">
+                            <File Name="v8-util.h" Id="_v8_util.h_4da38a75_9044_4651_a904_86e347bc7575" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-util.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_value_serializer_version.h_4af482da_305c_49e1_a821_eb930c772e4f" Guid="b42aba58-d06d-4d53-a6ba-05cf64250e7f" Win64="no">
+                            <File Name="v8-value-serializer-version.h" Id="_v8_value_serializer_version.h_4af482da_305c_49e1_a821_eb930c772e4f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-value-serializer-version.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_version_string.h_2302eb6b_48e4_4f49_8400_33cc97a22ec3" Guid="d53403dc-bf07-49cd-b7f3-472d60e09b2c" Win64="no">
+                            <File Name="v8-version-string.h" Id="_v8_version_string.h_2302eb6b_48e4_4f49_8400_33cc97a22ec3" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-version-string.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_version.h_01b318cb_2b03_4b3e_aa18_0df6dcdc5195" Guid="8ca7b7a1-181a-457d-a64b-3a5eedf8ecf3" Win64="no">
+                            <File Name="v8-version.h" Id="_v8_version.h_01b318cb_2b03_4b3e_aa18_0df6dcdc5195" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-version.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_wasm_trap_handler_posix.h_7002c0bf_4839_4cd6_81f6_0d1c1bf7d709" Guid="dcb0fcfb-3e66-415f-9cec-c096cd3e0134" Win64="no">
+                            <File Name="v8-wasm-trap-handler-posix.h" Id="_v8_wasm_trap_handler_posix.h_7002c0bf_4839_4cd6_81f6_0d1c1bf7d709" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-wasm-trap-handler-posix.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8_wasm_trap_handler_win.h_78451a5e_d546_4e97_b919_3ea3e073e19f" Guid="bc857285-f4fa-4c16-b872-45d003db70d7" Win64="no">
+                            <File Name="v8-wasm-trap-handler-win.h" Id="_v8_wasm_trap_handler_win.h_78451a5e_d546_4e97_b919_3ea3e073e19f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8-wasm-trap-handler-win.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8.h_3a30d517_9f70_435f_bf88_29f746837722" Guid="d5504de8-d59f-4167-8aad-7c656c461967" Win64="no">
+                            <File Name="v8.h" Id="_v8.h_3a30d517_9f70_435f_bf88_29f746837722" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_v8config.h_ee452062_e611_443e_905d_8a7bcebc1059" Guid="910e6bf5-62e3-4b11-85dd-dfde32fef91c" Win64="no">
+                            <File Name="v8config.h" Id="_v8config.h_ee452062_e611_443e_905d_8a7bcebc1059" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\v8config.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_zconf.h_d9ddb765_4ab1_460e_9d5c_3df4a6d5d795" Guid="9737fa0e-a14e-4a98-bf5a-173c27034851" Win64="no">
+                            <File Name="zconf.h" Id="_zconf.h_d9ddb765_4ab1_460e_9d5c_3df4a6d5d795" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\zconf.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                          <Component Id="_zlib.h_62f4aa45_5640_44f9_8218_ac9a14f90fd8" Guid="60d61166-a93d-4333-89b2-a76d72ef39de" Win64="no">
+                            <File Name="zlib.h" Id="_zlib.h_62f4aa45_5640_44f9_8218_ac9a14f90fd8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\include\node\zlib.h" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                          </Component>
+                        </Directory>
+
+                      </Directory>
+
+                      <Directory Id="_x64_35e91a52_c3e6_4192_b6d6_736d11c9e2d5" Name="x64">
+                        <Component Id="_node.lib_5144b76c_6d85_4b74_8790_b614c045851b" Guid="96b2da77-b04d-4af2-b985-9ab44afe1d13" Win64="no">
+                          <File Name="node.lib" Id="_node.lib_5144b76c_6d85_4b74_8790_b614c045851b" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\x64\node.lib" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>                      <Component Id="_installVersion_b41d3057_9c82_43cc_b87c_50b4fe12ff25" Guid="2fc27609-24f5-40ad-a075-5e137d8925ca" Win64="no">
+                        <File Name="installVersion" Id="_installVersion_b41d3057_9c82_43cc_b87c_50b4fe12ff25" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\11.2.1\installVersion" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>
+
+                    <Directory Id="_bin_47f4b20b_a9ec_4f22_a22d_ddbe0328b729" Name="bin">
+                      <Directory Id="_win32_x64_85_5fbf4541_66d5_41af_ae14_f875f0cd397e" Name="win32-x64-85">
+                        <Component Id="_exe_icon_extractor.node_cea65350_d4a4_41cd_99c8_3014a7f3eb14" Guid="32cf08ed-b60d-4707-b63e-8a7becde924b" Win64="no">
+                          <File Name="exe-icon-extractor.node" Id="_exe_icon_extractor.node_cea65350_d4a4_41cd_99c8_3014a7f3eb14" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\bin\win32-x64-85\exe-icon-extractor.node" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>
+                    </Directory>
+
+                    <Directory Id="_build_eb57ae7a_485f_4a7b_afe6_c7953a951a79" Name="build">
+                      <Directory Id="_Release_35e83099_ee0a_42a0_b06d_4e1c994f459e" Name="Release">
+                        <Directory Id="_obj_43fb1df2_88f5_4d21_8bee_ad4c648c6c36" Name="obj">
+                          <Directory Id="_module_201b3922_0e03_470a_b676_5b5ccd48fd22" Name="module">
+                            <Directory Id="_module.tlog_d62e457f_6d33_4916_8eba_10876e43b2fa" Name="module.tlog">
+                              <Component Id="_CL.command.1.tlog_9f3b6687_d72e_44f1_88a3_2ed0e8caf052" Guid="f48a31d2-cea6-401a-b6d6-88967169146f" Win64="no">
+                                <File Name="CL.command.1.tlog" Id="_CL.command.1.tlog_9f3b6687_d72e_44f1_88a3_2ed0e8caf052" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.tlog\CL.command.1.tlog" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_CL.read.1.tlog_25adb4a7_05ec_420f_8a95_b556f131e037" Guid="675f7deb-3e22-4544-b82a-64e2bbe019a6" Win64="no">
+                                <File Name="CL.read.1.tlog" Id="_CL.read.1.tlog_25adb4a7_05ec_420f_8a95_b556f131e037" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.tlog\CL.read.1.tlog" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_CL.write.1.tlog_8c3d5672_a26e_48c1_9767_fb76f8ab2b0a" Guid="2ed031cf-415c-4b36-b1f6-c5439d099038" Win64="no">
+                                <File Name="CL.write.1.tlog" Id="_CL.write.1.tlog_8c3d5672_a26e_48c1_9767_fb76f8ab2b0a" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.tlog\CL.write.1.tlog" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_link.command.1.tlog_855319b6_41ad_48fc_a3d0_d589d3a47cba" Guid="fd395de9-c620-4b6c-b286-78df971356fa" Win64="no">
+                                <File Name="link.command.1.tlog" Id="_link.command.1.tlog_855319b6_41ad_48fc_a3d0_d589d3a47cba" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.tlog\link.command.1.tlog" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_link.read.1.tlog_35be92df_3a02_44a5_a9ac_ab8f58892173" Guid="bbe6a34f-7f09-40d4-af16-4756eb145071" Win64="no">
+                                <File Name="link.read.1.tlog" Id="_link.read.1.tlog_35be92df_3a02_44a5_a9ac_ab8f58892173" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.tlog\link.read.1.tlog" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_link.write.1.tlog_5ba843ce_fda3_4aef_a4d4_393e8b9b0b8d" Guid="ddd997be-58fb-4fa9-ba08-3d715caf802f" Win64="no">
+                                <File Name="link.write.1.tlog" Id="_link.write.1.tlog_5ba843ce_fda3_4aef_a4d4_393e8b9b0b8d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.tlog\link.write.1.tlog" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_module.lastbuildstate_77644935_71b2_45c5_8efd_50d08a2c5a04" Guid="192cec80-1fe1-469d-bdde-98643731c6fa" Win64="no">
+                                <File Name="module.lastbuildstate" Id="_module.lastbuildstate_77644935_71b2_45c5_8efd_50d08a2c5a04" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.tlog\module.lastbuildstate" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                              <Component Id="_module.write.1u.tlog_ebed2e75_1e1d_454f_8173_707de5b51ab8" Guid="a66238f9-0ec0-4c86-8aab-debe5751470f" Win64="no">
+                                <File Name="module.write.1u.tlog" Id="_module.write.1u.tlog_ebed2e75_1e1d_454f_8173_707de5b51ab8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.tlog\module.write.1u.tlog" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                            </Directory>
+                            <Directory Id="_src_ba533886_37bf_4527_bc06_89e017083192" Name="src">
+                              <Component Id="_module.obj_0a53a450_1854_4125_b657_6a2cb6664212" Guid="5beee577-a41b-4832-88cf-d020afe121a9" Win64="no">
+                                <File Name="module.obj" Id="_module.obj_0a53a450_1854_4125_b657_6a2cb6664212" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\src\module.obj" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                              </Component>
+                            </Directory>                            <Component Id="_module.node.recipe_c7465441_17ad_4d87_9497_172d81f9d952" Guid="afa7bdb5-1968-49ae-a2ee-294750abbc2b" Win64="no">
+                              <File Name="module.node.recipe" Id="_module.node.recipe_c7465441_17ad_4d87_9497_172d81f9d952" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\module.node.recipe" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                            <Component Id="_win_delay_load_hook.obj_404e2056_380b_41f0_b6af_4e68f55ea718" Guid="6a22bb54-8d44-4188-9cc7-6a2b4aab265a" Win64="no">
+                              <File Name="win_delay_load_hook.obj" Id="_win_delay_load_hook.obj_404e2056_380b_41f0_b6af_4e68f55ea718" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\obj\module\win_delay_load_hook.obj" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                            </Component>
+                          </Directory>
+
+                        </Directory>
+                        <Component Id="_.forge_meta_0df818c2_a3d4_4c26_9c02_c151b6c87f64" Guid="4e6cde20-1bc3-4cd2-b5c7-651a3b532d89" Win64="no">
+                          <File Name=".forge-meta" Id="_.forge_meta_0df818c2_a3d4_4c26_9c02_c151b6c87f64" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\.forge-meta" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_module.exp_d3c1100d_3fd8_47bb_8d9a_f05ab991b1d3" Guid="d9b4df78-96ad-4da7-8da0-e51164c1e1dd" Win64="no">
+                          <File Name="module.exp" Id="_module.exp_d3c1100d_3fd8_47bb_8d9a_f05ab991b1d3" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\module.exp" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_module.iobj_d4d8f0b2_e9b7_4fff_8e2c_fe526aec2272" Guid="2dd568f4-930a-416e-878d-469c1b169d39" Win64="no">
+                          <File Name="module.iobj" Id="_module.iobj_d4d8f0b2_e9b7_4fff_8e2c_fe526aec2272" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\module.iobj" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_module.ipdb_297531e5_0ac3_4475_bda2_098e35a08d5c" Guid="46c0ae9a-7596-4d76-80bf-32e5c63a2592" Win64="no">
+                          <File Name="module.ipdb" Id="_module.ipdb_297531e5_0ac3_4475_bda2_098e35a08d5c" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\module.ipdb" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_module.lib_49b64a21_5304_49a3_9cff_481403f231f8" Guid="7a643f94-9ccd-4560-9222-c204417f3b43" Win64="no">
+                          <File Name="module.lib" Id="_module.lib_49b64a21_5304_49a3_9cff_481403f231f8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\module.lib" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_module.node_06910610_7d4c_44cb_b02b_9df4ec6a5c7d" Guid="51f29517-1931-488c-841f-7a99ea149743" Win64="no">
+                          <File Name="module.node" Id="_module.node_06910610_7d4c_44cb_b02b_9df4ec6a5c7d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\module.node" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_module.pdb_076add17_6685_4106_9d44_cfe279370603" Guid="3f9b9434-6421-4cc1-82a5-9e60321ecf13" Win64="no">
+                          <File Name="module.pdb" Id="_module.pdb_076add17_6685_4106_9d44_cfe279370603" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\Release\module.pdb" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>
+                      <Component Id="_binding.sln_9c9d0d67_0225_4009_8b77_6f47a88d67c2" Guid="e4044d7a-dfb7-4217-bfe7-12666f80d3f8" Win64="no">
+                        <File Name="binding.sln" Id="_binding.sln_9c9d0d67_0225_4009_8b77_6f47a88d67c2" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\binding.sln" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_config.gypi_e3f9b985_5f7e_467c_831e_d2cf983c8eef" Guid="16c99500-b904-4be8-b497-418ba2687084" Win64="no">
+                        <File Name="config.gypi" Id="_config.gypi_e3f9b985_5f7e_467c_831e_d2cf983c8eef" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\config.gypi" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_module.vcxproj_50cea363_baa5_4499_aa8b_2f224e78e860" Guid="7123881a-408d-4b48-8c4d-e98bae8533f0" Win64="no">
+                        <File Name="module.vcxproj" Id="_module.vcxproj_50cea363_baa5_4499_aa8b_2f224e78e860" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\module.vcxproj" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_module.vcxproj.filters_1f409f0c_06a2_4188_82b3_accba7145bba" Guid="dee9df63-8cc6-42f9-9147-a58e2674a068" Win64="no">
+                        <File Name="module.vcxproj.filters" Id="_module.vcxproj.filters_1f409f0c_06a2_4188_82b3_accba7145bba" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\build\module.vcxproj.filters" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>
+
+                    <Directory Id="_src_02b5bcda_db85_4950_9165_923d3a3092b9" Name="src">
+                      <Component Id="_module.cc_5a2442f2_cece_45ca_b38a_7d79f53fa0df" Guid="58ece4f5-e01f-402e-98e9-924c25099725" Win64="no">
+                        <File Name="module.cc" Id="_module.cc_5a2442f2_cece_45ca_b38a_7d79f53fa0df" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\src\module.cc" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>                    <Component Id="_README.md_f3e12fde_463d_479d_bdd9_7382c6bdba0f" Guid="a8da72b8-e055-47d8-9424-495317eb65a9" Win64="no">
+                      <File Name="README.md" Id="_README.md_f3e12fde_463d_479d_bdd9_7382c6bdba0f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_binding.gyp_22ded4fe_4422_4ffe_82c4_38dd7d969815" Guid="10001cf2-42c3-4710-85c9-7eeee5984526" Win64="no">
+                      <File Name="binding.gyp" Id="_binding.gyp_22ded4fe_4422_4ffe_82c4_38dd7d969815" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\binding.gyp" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_bindings.js_3acaa9a8_ae98_4493_9729_ec2de5d74562" Guid="6cec9dd4-5d84-484e-b617-72ef4ddb0710" Win64="no">
+                      <File Name="bindings.js" Id="_bindings.js_3acaa9a8_ae98_4493_9729_ec2de5d74562" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\bindings.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_00b4faaf_4e3a_45cd_94f7_b1c73f1ac274" Guid="c0e3da2a-65eb-4bb3-b552-c0e3d0dc313d" Win64="no">
+                      <File Name="package.json" Id="_package.json_00b4faaf_4e3a_45cd_94f7_b1c73f1ac274" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_test.js_80f0d52f_0d17_43e5_9588_d7e6ec4f7249" Guid="da43d727-fff8-4361-8bd9-40594baefa98" Win64="no">
+                      <File Name="test.js" Id="_test.js_80f0d52f_0d17_43e5_9588_d7e6ec4f7249" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\exe-icon-extractor\test.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+
+                  <Directory Id="_follow_redirects_9487d0dc_4ef7_4948_8c51_351ed9d588af" Name="follow-redirects">
+                    <Component Id="_LICENSE_56168037_71e0_4269_932b_ebe5f2bc03f8" Guid="6b7fe835-c17e-4cdc-b716-46c44c005c07" Win64="no">
+                      <File Name="LICENSE" Id="_LICENSE_56168037_71e0_4269_932b_ebe5f2bc03f8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\follow-redirects\LICENSE" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_README.md_a11cfa9e_239b_4091_a88b_0ee10316cfaf" Guid="7379dc1a-42b8-422b-ada7-e07e52c3b97a" Win64="no">
+                      <File Name="README.md" Id="_README.md_a11cfa9e_239b_4091_a88b_0ee10316cfaf" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\follow-redirects\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_debug.js_1fe47aa7_32aa_4054_af97_6d355522522e" Guid="5f89cc8a-8cf4-403a-b8e1-e55349d55c07" Win64="no">
+                      <File Name="debug.js" Id="_debug.js_1fe47aa7_32aa_4054_af97_6d355522522e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\follow-redirects\debug.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_http.js_45c2d7c8_c284_47cd_8382_b92a4a5ff7ee" Guid="c026ec67-369f-4bff-aa3b-168b2ecccc36" Win64="no">
+                      <File Name="http.js" Id="_http.js_45c2d7c8_c284_47cd_8382_b92a4a5ff7ee" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\follow-redirects\http.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_https.js_f8d07efe_fac7_41b8_9de1_a91a78a70383" Guid="aa1a49a5-55d9-4e92-92d0-760f18be285e" Win64="no">
+                      <File Name="https.js" Id="_https.js_f8d07efe_fac7_41b8_9de1_a91a78a70383" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\follow-redirects\https.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_index.js_ed40153f_465f_45dc_af49_8c2065c97ba1" Guid="d8c84250-eb2a-43e8-8e8e-daf90611ad1c" Win64="no">
+                      <File Name="index.js" Id="_index.js_ed40153f_465f_45dc_af49_8c2065c97ba1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\follow-redirects\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_624095e2_b5a4_426c_984e_5ad891f86708" Guid="82b1333c-d786-4f4b-94cd-5397fdfe7b1b" Win64="no">
+                      <File Name="package.json" Id="_package.json_624095e2_b5a4_426c_984e_5ad891f86708" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\follow-redirects\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+                  <Directory Id="_github_url_to_object_a266fb49_3c2b_41fb_82b7_1c45bd5b8dcb" Name="github-url-to-object">
+                    <Directory Id="_dist_102eb09e_5ae9_4649_8386_abccd960c54e" Name="dist">
+                      <Component Id="_commonjs.js_285604fa_a6c1_4c50_a012_11960a1d5b46" Guid="f4b62469-bf4a-4f36-90aa-eab77eb94768" Win64="no">
+                        <File Name="commonjs.js" Id="_commonjs.js_285604fa_a6c1_4c50_a012_11960a1d5b46" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\dist\commonjs.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_gh.js_afdc2c9d_c3d5_46cf_9e31_65f23921f21d" Guid="bb210f85-ddb8-4a63-bb85-7e5bf8575adc" Win64="no">
+                        <File Name="gh.js" Id="_gh.js_afdc2c9d_c3d5_46cf_9e31_65f23921f21d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\dist\gh.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_index.html_79ea7443_e618_4ea8_9a56_2dd250598ac7" Guid="e848f5e2-d49a-4937-9e25-86c3326c4fa4" Win64="no">
+                        <File Name="index.html" Id="_index.html_79ea7443_e618_4ea8_9a56_2dd250598ac7" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\dist\index.html" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>
+                    <Directory Id="_test_7bbed192_ec7a_43df_bc65_e265ff0f734d" Name="test">
+                      <Component Id="_index.js_c2dc12ef_80ea_4f75_b759_582da4e9a67d" Guid="8cc2a9e3-0b7a-4061-8e75-07d0771cc34b" Win64="no">
+                        <File Name="index.js" Id="_index.js_c2dc12ef_80ea_4f75_b759_582da4e9a67d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\test\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_mocha.opts_c72cab91_f4bc_4609_82ed_dea3c9fcc8d2" Guid="04ca265f-6596-4f7d-b8d1-fa90233212c9" Win64="no">
+                        <File Name="mocha.opts" Id="_mocha.opts_c72cab91_f4bc_4609_82ed_dea3c9fcc8d2" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\test\mocha.opts" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>                    <Component Id="_.travis.yml_91495b42_09b0_4f23_b4bb_19f92baba776" Guid="6ff0feac-01ea-41f0-a6c8-27259ee3bb0b" Win64="no">
+                      <File Name=".travis.yml" Id="_.travis.yml_91495b42_09b0_4f23_b4bb_19f92baba776" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\.travis.yml" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_README.md_c83d3b54_7c64_43c0_8e63_28abcb1fab83" Guid="7eecf987-2484-4514-b9e6-29cf3fcebd31" Win64="no">
+                      <File Name="README.md" Id="_README.md_c83d3b54_7c64_43c0_8e63_28abcb1fab83" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_bower.json_73af77ee_fb43_4b7c_953c_fef048637182" Guid="55f62300-ed02-45e4-a5d8-35dce3dd0700" Win64="no">
+                      <File Name="bower.json" Id="_bower.json_73af77ee_fb43_4b7c_953c_fef048637182" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\bower.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_index.js_2d843038_dc39_4e7d_955f_0d65ca0792d9" Guid="c9918e3f-1289-448c-91df-5e51ba7222df" Win64="no">
+                      <File Name="index.js" Id="_index.js_2d843038_dc39_4e7d_955f_0d65ca0792d9" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_a2b48e6a_d875_4692_bce7_ecc12de0ed9e" Guid="353ee0fc-a77d-4929-9d49-a0d1b51621d4" Win64="no">
+                      <File Name="package.json" Id="_package.json_a2b48e6a_d875_4692_bce7_ecc12de0ed9e" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\github-url-to-object\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+
+                  <Directory Id="_resources_app_node_modules_is_url_b3b49355_16d9_4729_bcad_a8e01fffc383" Name="is-url">
+                    <Directory Id="_test_0fb053d4_4eca_4cd6_b587_d783e4ebdd6a" Name="test">
+                      <Component Id="_index.js_cab15724_4533_407c_899b_aef475344030" Guid="d4a0b7ec-d271-4b79-98ba-41f1ef372d3c" Win64="no">
+                        <File Name="index.js" Id="_index.js_cab15724_4533_407c_899b_aef475344030" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\is-url\test\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>                    <Component Id="_.travis.yml_ab50286c_4dab_4803_9b90_5b36c0678221" Guid="5b0f28ba-4893-42d0-9d43-6e6c09d11d27" Win64="no">
+                      <File Name=".travis.yml" Id="_.travis.yml_ab50286c_4dab_4803_9b90_5b36c0678221" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\is-url\.travis.yml" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_History.md_84f7f8a0_80a8_4540_aef8_eb15e8fd6dd0" Guid="fce8117d-2577-4c39-81fb-013569d63e21" Win64="no">
+                      <File Name="History.md" Id="_History.md_84f7f8a0_80a8_4540_aef8_eb15e8fd6dd0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\is-url\History.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_LICENSE_MIT_b09ecd83_f1cd_42df_a8d9_c121b92a9051" Guid="a1a51b3f-72f4-489e-8586-2144ecf8c166" Win64="no">
+                      <File Name="LICENSE-MIT" Id="_LICENSE_MIT_b09ecd83_f1cd_42df_a8d9_c121b92a9051" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\is-url\LICENSE-MIT" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_Readme.md_e04defe9_98b5_4e5f_bea2_3c5552a6302f" Guid="385fa748-dc32-4b22-b474-557750863770" Win64="no">
+                      <File Name="Readme.md" Id="_Readme.md_e04defe9_98b5_4e5f_bea2_3c5552a6302f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\is-url\Readme.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_index.js_52902d5d_1c0d_4a92_a7bd_82e953b893dc" Guid="2a8f6437-c612-48a5-a914-48bd9a83afc1" Win64="no">
+                      <File Name="index.js" Id="_index.js_52902d5d_1c0d_4a92_a7bd_82e953b893dc" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\is-url\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_57eae7b9_53e9_4d5a_bda9_3672436fa56d" Guid="19ff4dce-a684-4ed5-a645-8b66d1ffe6af" Win64="no">
+                      <File Name="package.json" Id="_package.json_57eae7b9_53e9_4d5a_bda9_3672436fa56d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\is-url\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+
+                  <Directory Id="_resources_app_node_modules_ms_cc4b671c_9209_44de_a3d9_67cf26a6c4b6" Name="ms">
+                    <Component Id="_index.js_75d12a41_0e9d_435d_9a12_8df72592e4ac" Guid="2c15c121-97f6-4bfc-b951-ad53c1e7dd27" Win64="no">
+                      <File Name="index.js" Id="_index.js_75d12a41_0e9d_435d_9a12_8df72592e4ac" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\ms\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_license.md_39d253bd_5208_48f5_9865_5f520e015870" Guid="c1fbd4da-3881-421b-9733-64f5f787708f" Win64="no">
+                      <File Name="license.md" Id="_license.md_39d253bd_5208_48f5_9865_5f520e015870" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\ms\license.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_dbe3fec0_7919_433a_8e28_32e8428e93d4" Guid="f4438363-a28f-4f33-a907-f289f75409b6" Win64="no">
+                      <File Name="package.json" Id="_package.json_dbe3fec0_7919_433a_8e28_32e8428e93d4" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\ms\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_readme.md_2d0ffd30_9b07_4f91_85dc_d51d926ed692" Guid="100fa34e-0434-4e78-9ef7-20b222ae0631" Win64="no">
+                      <File Name="readme.md" Id="_readme.md_2d0ffd30_9b07_4f91_85dc_d51d926ed692" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\ms\readme.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+                  <Directory Id="_punycode_9555f075_ba00_47a6_be40_568eb5039198" Name="punycode">
+                    <Component Id="_LICENSE_MIT.txt_5d2b445c_864c_4fb4_becb_4d37e83ed828" Guid="49c70404-9726-4965-94aa-d68aef49d74f" Win64="no">
+                      <File Name="LICENSE-MIT.txt" Id="_LICENSE_MIT.txt_5d2b445c_864c_4fb4_becb_4d37e83ed828" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\punycode\LICENSE-MIT.txt" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_README.md_1a403861_4de1_47f6_af4c_6dc7dfdb86c8" Guid="56de6075-b785-4355-ac3a-b2c85913fb1d" Win64="no">
+                      <File Name="README.md" Id="_README.md_1a403861_4de1_47f6_af4c_6dc7dfdb86c8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\punycode\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_20c8683b_577d_4de2_bc45_39e7186da088" Guid="80dd521b-4fcd-435d-945f-01bc24cb4fa0" Win64="no">
+                      <File Name="package.json" Id="_package.json_20c8683b_577d_4de2_bc45_39e7186da088" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\punycode\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_punycode.es6.js_db31a1af_d4ef_4a5c_adad_90ce28ceff60" Guid="775f451b-8061-48f1-8159-ba96fe5df292" Win64="no">
+                      <File Name="punycode.es6.js" Id="_punycode.es6.js_db31a1af_d4ef_4a5c_adad_90ce28ceff60" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\punycode\punycode.es6.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_punycode.js_b498cf46_2736_4764_9ceb_5f1e21ee62b9" Guid="04a4c10f-4706-491d-a156-6cfd526cfc38" Win64="no">
+                      <File Name="punycode.js" Id="_punycode.js_b498cf46_2736_4764_9ceb_5f1e21ee62b9" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\punycode\punycode.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+                  <Directory Id="_update_electron_app_d1935688_f051_442d_819f_8fac9180e23b" Name="update-electron-app">
+                    <Directory Id="_.circleci_1d0f9d16_702d_4a52_bd67_554c413aba27" Name=".circleci">
+                      <Component Id="_config.yml_37ba031d_ff3e_46c8_bf18_bfb0f6c8218b" Guid="4057dfbe-0ad3-40bb-919c-8bf634dfed3e" Win64="no">
+                        <File Name="config.yml" Id="_config.yml_37ba031d_ff3e_46c8_bf18_bfb0f6c8218b" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\.circleci\config.yml" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>
+                    <Directory Id="_node_modules_88f0e958_b0ae_4e27_ab4f_ea99cdc047c6" Name="node_modules">
+                      <Directory Id="_ms_2057d570_e303_406d_bd49_6205724a18c2" Name="ms">
+                        <Component Id="_index.js_6feef661_50de_4cc6_b574_b5d34c5b771d" Guid="8ff4605a-e69c-449c-88bd-803d9eff3c83" Win64="no">
+                          <File Name="index.js" Id="_index.js_6feef661_50de_4cc6_b574_b5d34c5b771d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\node_modules\ms\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_license.md_89e65c91_c29b_4fa3_b7ce_a0040d5ae28d" Guid="4462cce3-2062-4760-a0b2-c60f9dd76fe2" Win64="no">
+                          <File Name="license.md" Id="_license.md_89e65c91_c29b_4fa3_b7ce_a0040d5ae28d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\node_modules\ms\license.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_package.json_3d72e3ca_5bb6_4a8c_94e6_1bc57ba91023" Guid="e983ee7d-a858-4f74-8524-177c977b7851" Win64="no">
+                          <File Name="package.json" Id="_package.json_3d72e3ca_5bb6_4a8c_94e6_1bc57ba91023" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\node_modules\ms\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                        <Component Id="_readme.md_7ed49960_e808_4161_8f5c_99dac421ea6d" Guid="4dc21944-679f-4987-b18d-c3db37a50b2d" Win64="no">
+                          <File Name="readme.md" Id="_readme.md_7ed49960_e808_4161_8f5c_99dac421ea6d" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\node_modules\ms\readme.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                        </Component>
+                      </Directory>
+                    </Directory>
+
+                    <Directory Id="_test_4e65bee3_6271_4211_8294_c2339e513021" Name="test">
+                      <Component Id="_index.test_d.ts_05c1ee45_f00f_42e3_9d59_375868a973bb" Guid="2555a6df-494f-4ca2-a2e4-59c6d0ddd0d5" Win64="no">
+                        <File Name="index.test-d.ts" Id="_index.test_d.ts_05c1ee45_f00f_42e3_9d59_375868a973bb" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\test\index.test-d.ts" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                      <Component Id="_index.test.js_f650588d_4741_45f7_80da_c95a33b4586f" Guid="cf56b889-b639-4de3-bc61-1156ebd64bde" Win64="no">
+                        <File Name="index.test.js" Id="_index.test.js_f650588d_4741_45f7_80da_c95a33b4586f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\test\index.test.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                      </Component>
+                    </Directory>                    <Component Id="_.releaserc.json_2bbf3028_17ac_4e99_aa2e_31779fb8ae49" Guid="01ef4e21-f197-42a2-ac1a-5e636b268391" Win64="no">
+                      <File Name=".releaserc.json" Id="_.releaserc.json_2bbf3028_17ac_4e99_aa2e_31779fb8ae49" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\.releaserc.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_LICENSE_df18288a_9f09_445d_a76f_cfa6ea9e04a8" Guid="119c1375-64fe-408b-bff9-b4d03b4c3a09" Win64="no">
+                      <File Name="LICENSE" Id="_LICENSE_df18288a_9f09_445d_a76f_cfa6ea9e04a8" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\LICENSE" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_index.d.ts_b5c8d9fd_e1e7_459d_bfb9_89b82c40b435" Guid="62f65ef0-289c-4713-8419-e0d9ea9155c6" Win64="no">
+                      <File Name="index.d.ts" Id="_index.d.ts_b5c8d9fd_e1e7_459d_bfb9_89b82c40b435" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\index.d.ts" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_index.js_3122a38c_10eb_4a5c_a34f_b664f81b2026" Guid="0512e79f-b97c-4c99-a384-04fdfe668152" Win64="no">
+                      <File Name="index.js" Id="_index.js_3122a38c_10eb_4a5c_a34f_b664f81b2026" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\index.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_package.json_3177717f_eed9_4487_8b31_4c87bbfbf7ce" Guid="534ecd73-3431-4229-b48c-515dea00b009" Win64="no">
+                      <File Name="package.json" Id="_package.json_3177717f_eed9_4487_8b31_4c87bbfbf7ce" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_readme.md_08216559_616d_4fb8_a7d2_089e2f833c79" Guid="885a15dc-8d71-4e66-8ce8-8e60b9059cec" Win64="no">
+                      <File Name="readme.md" Id="_readme.md_08216559_616d_4fb8_a7d2_089e2f833c79" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\readme.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                    <Component Id="_screenshot.png_6967b987_397e_448c_a0e4_c293cca1a250" Guid="1a2688bf-ee2e-4fcc-bcd2-8751ee188d2e" Win64="no">
+                      <File Name="screenshot.png" Id="_screenshot.png_6967b987_397e_448c_a0e4_c293cca1a250" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\node_modules\update-electron-app\screenshot.png" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                    </Component>
+                  </Directory>
+
+                </Directory>
+                <Component Id="_resources_app_.gitignore_a82c7e6d_1ae3_47c3_a448_67398e737b90" Guid="36b88668-faf5-461b-9a7a-7d9c585e3518" Win64="no">
+                  <File Name=".gitignore" Id="_resources_app_.gitignore_a82c7e6d_1ae3_47c3_a448_67398e737b90" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\.gitignore" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_LICENSE_2a44725b_1952_4cbb_aa88_3832a25e1833" Guid="891e34bf-829c-4c0e-9a82-03e3e5bd5dbc" Win64="no">
+                  <File Name="LICENSE" Id="_resources_app_LICENSE_2a44725b_1952_4cbb_aa88_3832a25e1833" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\LICENSE" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_README.md_1bbcd21d_f5fe_4057_b9b1_b26e97393a43" Guid="a8fa6391-e341-4075-9ed8-2434784b66b2" Win64="no">
+                  <File Name="README.md" Id="_resources_app_README.md_1bbcd21d_f5fe_4057_b9b1_b26e97393a43" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\README.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_forge.config.js_388a825f_9aed_4011_8f26_6c09dbafc098" Guid="f5e1d2dd-c9a5-45f7-91cc-82f0774f2610" Win64="no">
+                  <File Name="forge.config.js" Id="_resources_app_forge.config.js_388a825f_9aed_4011_8f26_6c09dbafc098" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\forge.config.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_index.html_e4e0b4b9_ce83_447e_b8f0_b66f8afc7aaf" Guid="42c0eba8-f9f1-43bf-9de6-2c0d11a17224" Win64="no">
+                  <File Name="index.html" Id="_resources_app_index.html_e4e0b4b9_ce83_447e_b8f0_b66f8afc7aaf" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\index.html" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_installation.md_f0601283_984f_4e77_b9a3_b13bd1238428" Guid="016c1760-4901-46fc-9e1d-5a077e1cd65b" Win64="no">
+                  <File Name="installation.md" Id="_resources_app_installation.md_f0601283_984f_4e77_b9a3_b13bd1238428" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\installation.md" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_logo.icns_f3958bb2_758d_45f8_b595_5e5dc6a93444" Guid="d46a1d82-2fbd-4b32-b2df-98914406a5ea" Win64="no">
+                  <File Name="logo.icns" Id="_resources_app_logo.icns_f3958bb2_758d_45f8_b595_5e5dc6a93444" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\logo.icns" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_logo.ico_d06fbbdb_252e_4179_a7f8_52e106b4e9cf" Guid="488ec327-8964-416e-a0ee-159269522d57" Win64="no">
+                  <File Name="logo.ico" Id="_resources_app_logo.ico_d06fbbdb_252e_4179_a7f8_52e106b4e9cf" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\logo.ico" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_logo.png_d43ae1bf_3f0f_45dc_a013_e8ec090b8854" Guid="75af2b0b-847f-4ee9-a04a-72dc78a8ed8e" Win64="no">
+                  <File Name="logo.png" Id="_resources_app_logo.png_d43ae1bf_3f0f_45dc_a013_e8ec090b8854" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\logo.png" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_macos_blocked.png_a7876ea8_335f_43ab_b933_5caecd00d609" Guid="7944de6f-824e-4d93-85d1-0e40d41c7a23" Win64="no">
+                  <File Name="macos-blocked.png" Id="_resources_app_macos_blocked.png_a7876ea8_335f_43ab_b933_5caecd00d609" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\macos-blocked.png" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_macos_open_1.png_b036687e_f78d_446c_8149_5ef10739a48a" Guid="02477933-b334-4fff-bfe5-97829799dea4" Win64="no">
+                  <File Name="macos-open-1.png" Id="_resources_app_macos_open_1.png_b036687e_f78d_446c_8149_5ef10739a48a" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\macos-open-1.png" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_macos_open_2.png_c62afa52_6423_4d7e_990d_646d36d38688" Guid="a37a58e7-5128-47b3-a71b-5eb034f97359" Win64="no">
+                  <File Name="macos-open-2.png" Id="_resources_app_macos_open_2.png_c62afa52_6423_4d7e_990d_646d36d38688" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\macos-open-2.png" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_main.js_080a1ca5_2463_473d_ab6e_2d1082a5d77b" Guid="e6c86708-ba60-4609-af2c-de54d54cc94f" Win64="no">
+                  <File Name="main.js" Id="_resources_app_main.js_080a1ca5_2463_473d_ab6e_2d1082a5d77b" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\main.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_package.json_68e33152_37f5_48ea_81be_f5513cfc4d18" Guid="d53beff2-6ede-4978-803d-56295030cf32" Win64="no">
+                  <File Name="package.json" Id="_resources_app_package.json_68e33152_37f5_48ea_81be_f5513cfc4d18" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\package.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_preload.js_fd225c65_6860_446b_88ed_c92ddcb82261" Guid="32aef2b2-dfdc-4857-9fa3-488c13065070" Win64="no">
+                  <File Name="preload.js" Id="_resources_app_preload.js_fd225c65_6860_446b_88ed_c92ddcb82261" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\preload.js" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_resources_app_style.css_9c96c0eb_eaa5_44d1_9bbc_e42949943659" Guid="64abe01d-9a2f-4a3b-91ec-2039e81afa8a" Win64="no">
+                  <File Name="style.css" Id="_resources_app_style.css_9c96c0eb_eaa5_44d1_9bbc_e42949943659" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources\app\style.css" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+              </Directory>
+
+            </Directory>
+
+            <Directory Id="_swiftshader_0d3eec95_1f0c_45b2_8f1d_29e76575c8a4" Name="swiftshader">
+              <Component Id="_swiftshader_libEGL.dll_12a9d7c0_d789_4168_8028_87fa9ce54d50" Guid="655e49c5-c711-430e-af72-51d33f43c3d6" Win64="no">
+                <File Name="libEGL.dll" Id="_swiftshader_libEGL.dll_12a9d7c0_d789_4168_8028_87fa9ce54d50" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\swiftshader\libEGL.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_swiftshader_libGLESv2.dll_ef83fce0_18ca_4d08_94e1_700829c834e9" Guid="39a07806-bf1d-49a8-89d4-cd563b9a40f3" Win64="no">
+                <File Name="libGLESv2.dll" Id="_swiftshader_libGLESv2.dll_ef83fce0_18ca_4d08_94e1_700829c834e9" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\swiftshader\libGLESv2.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+            </Directory>            <Component Id="_LICENSE_251245aa_5f8c_4428_9571_b0748ea795ac" Guid="6900a121-c27a-4793-873b-9160c0793b3d" Win64="no">
+              <File Name="LICENSE" Id="_LICENSE_251245aa_5f8c_4428_9571_b0748ea795ac" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\LICENSE" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_LICENSES.chromium.html_4bc72e86_f338_479d_b148_06a7bef3a861" Guid="ae5b9ea4-fd7d-4c30-a0a2-c344cf64dc85" Win64="no">
+              <File Name="LICENSES.chromium.html" Id="_LICENSES.chromium.html_4bc72e86_f338_479d_b148_06a7bef3a861" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\LICENSES.chromium.html" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_chrome_100_percent.pak_d2c9fce4_7a48_4d46_a586_fc54f0601cee" Guid="5e58e58f-37e4-4fdd-8ba6-39a6013decc3" Win64="no">
+              <File Name="chrome_100_percent.pak" Id="_chrome_100_percent.pak_d2c9fce4_7a48_4d46_a586_fc54f0601cee" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\chrome_100_percent.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_chrome_200_percent.pak_18f86e7c_bb19_4842_a13a_7201e9e483aa" Guid="f0977910-90c3-460a-920a-d1829616cda7" Win64="no">
+              <File Name="chrome_200_percent.pak" Id="_chrome_200_percent.pak_18f86e7c_bb19_4842_a13a_7201e9e483aa" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\chrome_200_percent.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_d3dcompiler_47.dll_85b35970_3e25_4310_b38c_babcbfd41e4f" Guid="92836ea2-f8b7-4590-bbb1-e546e14d6c0d" Win64="no">
+              <File Name="d3dcompiler_47.dll" Id="_d3dcompiler_47.dll_85b35970_3e25_4310_b38c_babcbfd41e4f" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\d3dcompiler_47.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_ffmpeg.dll_bf3b5174_e5c5_4c25_ab3d_26558d8d4633" Guid="6f8357d1-4d21-47ba-8ab5-9c66badd7d5f" Win64="no">
+              <File Name="ffmpeg.dll" Id="_ffmpeg.dll_bf3b5174_e5c5_4c25_ab3d_26558d8d4633" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\ffmpeg.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_icudtl.dat_18955486_6c95_4cf5_a2b8_63865ffa14eb" Guid="fb0543de-a50e-4894-ad84-aae4becd42e4" Win64="no">
+              <File Name="icudtl.dat" Id="_icudtl.dat_18955486_6c95_4cf5_a2b8_63865ffa14eb" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\icudtl.dat" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_libEGL.dll_7f8660c7_8976_4a59_b0c3_de61230e8c00" Guid="71dcab84-8d06-4cdf-968f-ae35d7bd05f1" Win64="no">
+              <File Name="libEGL.dll" Id="_libEGL.dll_7f8660c7_8976_4a59_b0c3_de61230e8c00" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\libEGL.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_libGLESv2.dll_728313b6_c5f6_4a86_8dbc_6a815de8d699" Guid="be94ce57-a8e7-4268-8495-bbc8b7f71669" Win64="no">
+              <File Name="libGLESv2.dll" Id="_libGLESv2.dll_728313b6_c5f6_4a86_8dbc_6a815de8d699" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\libGLESv2.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_resources.pak_7d133d00_e6c9_4b55_b236_4439500339a0" Guid="d06cc387-17eb-43df-ae92-44ab8a8b0f76" Win64="no">
+              <File Name="resources.pak" Id="_resources.pak_7d133d00_e6c9_4b55_b236_4439500339a0" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\resources.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_snapshot_blob.bin_76011753_c556_4eb7_98d5_6cf2e85a17be" Guid="03ae582f-607a-482e-ad42-2a2d5175fcd6" Win64="no">
+              <File Name="snapshot_blob.bin" Id="_snapshot_blob.bin_76011753_c556_4eb7_98d5_6cf2e85a17be" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\snapshot_blob.bin" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_v8_context_snapshot.bin_99783f52_841d_454a_b4d4_6188dbddbd31" Guid="7e7e8c05-54e0-4579-a625-5f2ad0d13b42" Win64="no">
+              <File Name="v8_context_snapshot.bin" Id="_v8_context_snapshot.bin_99783f52_841d_454a_b4d4_6188dbddbd31" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\v8_context_snapshot.bin" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_version_19a16b6b_4437_48be_a32d_0ce60276f447" Guid="09b3d17b-7fe9-42ee-930f-90b15ae2b585" Win64="no">
+              <File Name="version" Id="_version_19a16b6b_4437_48be_a32d_0ce60276f447" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\version" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_vk_swiftshader.dll_02f6c51f_d27b_4637_812b_b619788b7c31" Guid="7e812a2c-c1a8-4fce-a09c-d87571cbdc31" Win64="no">
+              <File Name="vk_swiftshader.dll" Id="_vk_swiftshader.dll_02f6c51f_d27b_4637_812b_b619788b7c31" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\vk_swiftshader.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_vk_swiftshader_icd.json_99f1c5c1_fd64_4041_a533_882114ac99c4" Guid="2342946a-6830-491a-a6f2-7e21f8148707" Win64="no">
+              <File Name="vk_swiftshader_icd.json" Id="_vk_swiftshader_icd.json_99f1c5c1_fd64_4041_a533_882114ac99c4" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\vk_swiftshader_icd.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_vulkan_1.dll_627921a3_fb77_4906_a8d4_24961b105cc1" Guid="7c7a8c0a-2e2d-4bd9-acb0-d533884a639b" Win64="no">
+              <File Name="vulkan-1.dll" Id="_vulkan_1.dll_627921a3_fb77_4906_a8d4_24961b105cc1" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\vulkan-1.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_whitebear.exe_da5e33b5_3bb7_443a_bef3_439c5cd94250" Guid="57f0aadc-9b54-4939-9e76-e34b42fda7af" Win64="no">
+              <File Name="whitebear.exe" Id="_whitebear.exe_da5e33b5_3bb7_443a_bef3_439c5cd94250" Source="D:\a\whitebear-client\whitebear-client\out\WhiteBear-win32-x64\whitebear.exe" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+          </Directory>
+          <Component Id="_whitebear.exe_32a45340_e0a1_43cd_8897_93875e10f8a3" Guid="c388e634-27e7-412f-b027-3191fd54fbaa" Win64="no">
+            <File Name="whitebear.exe" Id="_whitebear.exe_32a45340_e0a1_43cd_8897_93875e10f8a3" Source="C:\Users\RUNNER~1\AppData\Local\Temp\whitebearJYuSWI\whitebear.exe" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+          </Component>
+          <Component Id="_.installInfo.json_06641d58_deae_449e_a734_72757931504f" Guid="3b9ac1d1-9882-4e9e-bba3-688796de53f7" Win64="no">
+            <File Name=".installInfo.json" Id="_.installInfo.json_06641d58_deae_449e_a734_72757931504f" Source="C:\Users\RUNNER~1\AppData\Local\Temp\.installInfoVghGfw\.installInfo.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+          </Component>
+          <Component Id="RegistryInstallPath" Guid="c54f8d98-2b35-4b8d-bce8-3859160a6a6b" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="InstallPath" Type="string" Value="[APPLICATIONROOTDIRECTORY]" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallDisplayName" Guid="0aaa712c-e1cd-469c-831a-eea553f59c04" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="DisplayName" Type="string" Value="[VisibleProductName]" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallPublisher" Guid="ad820596-1d76-4cd0-a6c2-d916f287da29" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="Publisher" Type="string" Value="Team int" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallDisplayVersion" Guid="30d641a6-1a78-4eee-b23e-03eec3363b6a" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="DisplayVersion" Type="string" Value="1.0.1" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallModifyString" Guid="c99bfc3a-b081-457e-bc09-81a4e8310294" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="ModifyPath" Type="expandable" Value="MsiExec.exe /I {F77AA725-B771-4FE7-9874-06C2F30BB773}" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallString" Guid="a9b3b27f-451c-4eb3-a74a-73f228ff54ad" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="UninstallString" Type="expandable" Value="MsiExec.exe /X {F77AA725-B771-4FE7-9874-06C2F30BB773}" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallDisplayIcon" Guid="bdc10f03-c0c6-422d-a375-0a1a78ee07c8" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{F77AA725-B771-4FE7-9874-06C2F30BB773}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="DisplayIcon" Type="expandable" Value="[SystemFolder]msiexec.exe" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+        </Directory>
+      </Directory>
+
+      <!-- Desktop -->
+      <Directory Id="DesktopFolder" Name="Desktop" />
+
+      <!-- Start Menu -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="Team int"/>
+      </Directory>
+    </Directory>
+
+    <!-- Step 3: Add app to Start Menu -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="5b09069f-7653-4ea9-a98c-940213726ef1" Win64="no">
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="WhiteBear"
+                  Description="WhiteBear client"
+                  Target="[APPLICATIONROOTDIRECTORY]whitebear.exe"
+                  WorkingDirectory="APPLICATIONROOTDIRECTORY">
+          <ShortcutProperty Key="System.AppUserModel.ID" Value="com.squirrel.whitebear.whitebear" />
+        </Shortcut>
+        <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
+        <RegistryValue Root="HKCU"
+                       Key="Software\Microsoft\WhiteBear"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes"/>
+      </Component>
+    </DirectoryRef>
+
+   <!-- Step 4: Add app desktop shortcut --> 
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="9a447738-3fda-4ea7-ba6c-64bf4e2026ff" >
+          <Shortcut Id="MyDesktopShortcut"
+                    Name="WhiteBear"
+                    Description="WhiteBear client"
+                    Target="[APPLICATIONROOTDIRECTORY]whitebear.exe"
+                    WorkingDirectory="APPLICATIONROOTDIRECTORY"/>
+          <RegistryValue Root="HKCU"
+                    Key="Software\Microsoft\WhiteBear"
+                    Name="installed"
+                    Type="integer"
+                    Value="1"
+                    KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+
+    <!-- Lets cleanup any files that are were not part of the initial install
+    via this MSI. Such as newer versions installed by the auto-updater. -->
+    <DirectoryRef Id="APPLICATIONROOTDIRECTORY">
+      <Component Id="PurgeOnUninstall" Guid="5943ed0c-9abb-4a9b-bd47-66b6e65c46a1" Win64="no">
+        <CreateFolder/>
+        <util:RemoveFolderEx On="uninstall" Property="INSTALLPATH" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Complete" Title="WhiteBear (1.0.1)" Description="The complete package." Display="expand" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
+      <!-- Step 5: Tell WiX to install the files -->
+      <Feature Id="MainApplication" Title="Main Application" Level="1" Description="The main components to run the applications." >
+        <ComponentRef Id="_locales_am.pak_329264e6_3ddf_4fd2_acf8_6544c7e35e59" />
+        <ComponentRef Id="_locales_ar.pak_dd6a3699_b654_4da3_b19d_8dbd3ae26716" />
+        <ComponentRef Id="_locales_bg.pak_c4a5e7bd_47c7_47f3_861f_291b5b568bb2" />
+        <ComponentRef Id="_locales_bn.pak_66daf331_fc90_4ad4_a635_8e05c44e2d8a" />
+        <ComponentRef Id="_locales_ca.pak_c8c7d2b3_6ed6_4052_9337_037864bda2ac" />
+        <ComponentRef Id="_locales_cs.pak_0bd8e098_5d4f_4ffb_b03e_2500121abd1c" />
+        <ComponentRef Id="_locales_da.pak_3aea07d0_a028_4279_80b8_1892841e116e" />
+        <ComponentRef Id="_locales_de.pak_87fee9ae_811b_4e69_beb6_9fc8de98ee75" />
+        <ComponentRef Id="_locales_el.pak_40ea86d4_7ecc_4b4b_a6be_a8d5894bfb66" />
+        <ComponentRef Id="_locales_en_GB.pak_8dbaca92_4a56_4550_ad01_8fbc57985cde" />
+        <ComponentRef Id="_locales_en_US.pak_98888f5e_06b3_45cd_a7ee_941633e196df" />
+        <ComponentRef Id="_locales_es_419.pak_21faf512_5f01_492d_85dd_5b285c56fdfd" />
+        <ComponentRef Id="_locales_es.pak_51d52ccc_7d0c_4999_99b8_fca0c824b052" />
+        <ComponentRef Id="_locales_et.pak_468c3043_0c96_480d_95d5_b8829436bee3" />
+        <ComponentRef Id="_locales_fa.pak_902e2980_a960_4270_89a9_f66a1cbdf860" />
+        <ComponentRef Id="_locales_fi.pak_a862ed81_6296_41db_a6f8_31dbbf68356c" />
+        <ComponentRef Id="_locales_fil.pak_e056436c_324f_4110_96d7_b2a54ae4f421" />
+        <ComponentRef Id="_locales_fr.pak_ff09e01e_af4b_41a3_a4c6_ec2fadba6099" />
+        <ComponentRef Id="_locales_gu.pak_a188aed5_e72a_45a4_9095_37ad7b603266" />
+        <ComponentRef Id="_locales_he.pak_f7198e47_5dde_49ae_ae21_aa12579fb7ce" />
+        <ComponentRef Id="_locales_hi.pak_5065c413_f92a_46d1_ada1_b5a15b5c993a" />
+        <ComponentRef Id="_locales_hr.pak_3db424db_6617_4405_9bce_f6f2c4539f13" />
+        <ComponentRef Id="_locales_hu.pak_6fe6344b_cd1f_4dd2_8eb4_748eec4233c6" />
+        <ComponentRef Id="_locales_id.pak_a1797256_9b28_4eee_bf49_1ac7ab8f1e5a" />
+        <ComponentRef Id="_locales_it.pak_94ea0f8a_02eb_449a_b92f_46788e272f9c" />
+        <ComponentRef Id="_locales_ja.pak_87906730_4eb8_4690_a798_2a2b45daeb94" />
+        <ComponentRef Id="_locales_kn.pak_e5e4de09_74c9_47c9_85c0_3101a56e11d8" />
+        <ComponentRef Id="_locales_ko.pak_d9b29e0d_e854_486b_ac6f_aea851ee41d0" />
+        <ComponentRef Id="_locales_lt.pak_77d024fd_df1a_47e6_b758_9c492f321e51" />
+        <ComponentRef Id="_locales_lv.pak_6fdae2b7_c6cd_4612_80fc_2adb7d1b1d28" />
+        <ComponentRef Id="_locales_ml.pak_3fc66201_f301_4a20_b276_fde4417f458f" />
+        <ComponentRef Id="_locales_mr.pak_e0a42bfb_4a88_46c7_81e6_203a78ef5233" />
+        <ComponentRef Id="_locales_ms.pak_4d0b0f14_3a62_43dd_9c6e_3bddafd44783" />
+        <ComponentRef Id="_locales_nb.pak_701b36b7_93ea_43a4_9cd7_21f90d4c4ede" />
+        <ComponentRef Id="_locales_nl.pak_3d7620b9_de9e_4f68_b08b_e91bc4c60b39" />
+        <ComponentRef Id="_locales_pl.pak_c7a503d2_34db_4c77_b816_d5f8e3235c03" />
+        <ComponentRef Id="_locales_pt_BR.pak_1fd18b95_5214_438b_a8be_23a0007c5374" />
+        <ComponentRef Id="_locales_pt_PT.pak_f58dfd67_ed40_494f_abc4_49ef46838ec6" />
+        <ComponentRef Id="_locales_ro.pak_1c2c0397_4d11_4534_90ad_890b137c657e" />
+        <ComponentRef Id="_locales_ru.pak_6fb2930e_c7ec_4abb_b869_a3d62af1bb82" />
+        <ComponentRef Id="_locales_sk.pak_13711ec2_4c71_4a39_a81f_28e0a7a062b1" />
+        <ComponentRef Id="_locales_sl.pak_dd050ebf_b57c_4ffe_98ca_46cf48f7fc8a" />
+        <ComponentRef Id="_locales_sr.pak_4efd6d40_3b9e_4718_9cb6_28a401c85d9e" />
+        <ComponentRef Id="_locales_sv.pak_f70a63d7_66c9_4f5b_8e4f_9d0cfc0abca2" />
+        <ComponentRef Id="_locales_sw.pak_68669d44_e315_463d_b6db_61f3bdf545a5" />
+        <ComponentRef Id="_locales_ta.pak_1aaf6d8a_c83c_42ef_ba3b_c49969ec2256" />
+        <ComponentRef Id="_locales_te.pak_38d7367b_6ec9_40d3_9c01_9a157037043c" />
+        <ComponentRef Id="_locales_th.pak_772820e5_c75d_4403_b269_08a25d76ce50" />
+        <ComponentRef Id="_locales_tr.pak_ac39955b_5712_44bc_a892_761eccae15ee" />
+        <ComponentRef Id="_locales_uk.pak_99d7be69_f6ab_4fc8_8e15_d6aaf76838cc" />
+        <ComponentRef Id="_locales_vi.pak_1361752d_11b4_47bf_904f_2f2c7f3881e7" />
+        <ComponentRef Id="_locales_zh_CN.pak_18eb742e_436f_45e6_b58d_28db8f307766" />
+        <ComponentRef Id="_locales_zh_TW.pak_818d298b_67f7_4b37_8958_71bca51a7319" />
+        <ComponentRef Id="_buildApp.yml_84a63d0f_5396_4117_8824_172dc5e12238" />
+        <ComponentRef Id="_axios.js_85c45b94_bb89_4833_ae97_728635595ec3" />
+        <ComponentRef Id="_axios.map_cf364ebc_dcbe_4d58_b659_be76d49eb3e8" />
+        <ComponentRef Id="_axios.min.js_5c5a61c5_7c63_41a9_910b_7ff303c92873" />
+        <ComponentRef Id="_axios.min.map_fbeb92dc_8f82_47de_8070_740f4c1c28c1" />
+        <ComponentRef Id="_README.md_8c608408_61f2_4e77_a10b_c19b77a42d80" />
+        <ComponentRef Id="_http.js_172a0d3b_fd8f_4db3_b962_aa5cd63ac2e3" />
+        <ComponentRef Id="_xhr.js_a1e0447a_c34b_406b_ac06_228c3f299600" />
+        <ComponentRef Id="_Cancel.js_f3b7a38a_bb7b_4657_80f7_872de91692f0" />
+        <ComponentRef Id="_CancelToken.js_34ecc838_68da_4fb9_ab9e_d235abfc6ef2" />
+        <ComponentRef Id="_isCancel.js_5c5ad592_cea5_4323_9a6d_8f25078b606d" />
+        <ComponentRef Id="_Axios.js_dbebe12f_01d6_40c5_846b_e1529b53abe1" />
+        <ComponentRef Id="_InterceptorManager.js_55b3a77f_fe0c_4159_bb54_d8b65076f690" />
+        <ComponentRef Id="_README.md_cebb16c4_f820_43dc_8453_4e86a49c5b13" />
+        <ComponentRef Id="_buildFullPath.js_cbc977a1_ff5e_4ba3_b75a_8ef89604157e" />
+        <ComponentRef Id="_createError.js_5627552e_0f02_4065_8b84_0366c10e23c0" />
+        <ComponentRef Id="_dispatchRequest.js_600f4062_2d14_460e_a47a_1e859ee9c4e0" />
+        <ComponentRef Id="_enhanceError.js_8cbaa400_b60a_4432_ac29_e60f4a6d6f99" />
+        <ComponentRef Id="_mergeConfig.js_19c9c7b5_96ce_42e6_8349_f27543ee7407" />
+        <ComponentRef Id="_settle.js_04ffff10_9b48_4a72_8a3e_b680f0e4068e" />
+        <ComponentRef Id="_transformData.js_86b3b447_edff_418f_9738_641a6a097c76" />
+        <ComponentRef Id="_README.md_3a2a9e76_18d7_4d55_9366_cc5263e253b0" />
+        <ComponentRef Id="_bind.js_d5b87b15_deb3_42a6_8846_6b60182b6e95" />
+        <ComponentRef Id="_buildURL.js_9f4afc37_736e_4ec8_bd72_93a5d9db2cad" />
+        <ComponentRef Id="_combineURLs.js_49dceffe_dacf_4377_b70e_bba95bb13342" />
+        <ComponentRef Id="_cookies.js_b3edaa01_fe89_43d7_a569_dc9cc025044c" />
+        <ComponentRef Id="_deprecatedMethod.js_da9d4ed7_226c_443f_a1eb_45411d400e61" />
+        <ComponentRef Id="_isAbsoluteURL.js_60a0c593_a3e9_40d4_bde3_47764ab74dac" />
+        <ComponentRef Id="_isAxiosError.js_6c65d186_f37d_45c6_8876_19613b51b823" />
+        <ComponentRef Id="_isURLSameOrigin.js_0153c6ea_0225_45b9_9b91_5bfb4d8ebd89" />
+        <ComponentRef Id="_normalizeHeaderName.js_d7ee12c3_866d_4938_8ce4_63689fbc971d" />
+        <ComponentRef Id="_parseHeaders.js_f33c3e89_590b_4f74_9f8d_47fac6ee2744" />
+        <ComponentRef Id="_spread.js_728bc893_274e_4c04_befe_58f449059101" />
+        <ComponentRef Id="_axios.js_7ca80b01_bed9_4b10_89be_a8858e1fe759" />
+        <ComponentRef Id="_defaults.js_fe2ede1c_b14b_4d7f_b216_095baa628c43" />
+        <ComponentRef Id="_utils.js_092728e9_976e_491d_9cd2_826c7314821d" />
+        <ComponentRef Id="_CHANGELOG.md_c87ae655_9623_4b6c_b60d_417d59b73879" />
+        <ComponentRef Id="_LICENSE_f5a4105d_5857_4467_9bda_4119078577fc" />
+        <ComponentRef Id="_README.md_5478f4d0_be52_4e32_a880_f5abd44a0015" />
+        <ComponentRef Id="_UPGRADE_GUIDE.md_e05140f2_dbc6_4001_a011_017758b58f83" />
+        <ComponentRef Id="_index.d.ts_1bc7bc84_cbc3_482b_9f93_b3fbb570d663" />
+        <ComponentRef Id="_index.js_8eb0262b_467a_4d40_8e37_928f6f04eee4" />
+        <ComponentRef Id="_package.json_d61b8ad5_fa70_4481_a892_83cd56d97331" />
+        <ComponentRef Id="_browser.js_7dc5a50a_c786_49f5_99ec_b420f09092e1" />
+        <ComponentRef Id="_debug.js_8fe3b2da_aad4_40ef_b2d9_0dd0b53efc94" />
+        <ComponentRef Id="_index.js_eb81b4f6_2e80_4e9a_b731_f83d78733ffa" />
+        <ComponentRef Id="_inspector_log.js_bdfb3c65_f285_4a21_b5be_431df47559e1" />
+        <ComponentRef Id="_node.js_61662752_acc2_4b17_a823_a775915e383a" />
+        <ComponentRef Id="_.coveralls.yml_7eb03d86_b9a2_47f4_84f1_af952e35d5af" />
+        <ComponentRef Id="_.eslintrc_eba02e22_b7dc_4d84_8bf4_91c9bafac886" />
+        <ComponentRef Id="_.npmignore_bad6b98c_1c7f_4087_9ebf_acd1d3ec4d11" />
+        <ComponentRef Id="_.travis.yml_6ea4a9b8_8bbb_4222_bd3d_13f56adc8562" />
+        <ComponentRef Id="_CHANGELOG.md_736904dd_2307_4d9d_8a09_656490426578" />
+        <ComponentRef Id="_LICENSE_9f25feba_82fd_4736_8470_4b25418012a0" />
+        <ComponentRef Id="_Makefile_f6422c1d_b80a_48df_9390_51123068cae7" />
+        <ComponentRef Id="_README.md_31d0abcf_ec4f_4bc8_95b4_c0008d5313fd" />
+        <ComponentRef Id="_component.json_df2718b7_3f96_41eb_9f40_e5e5d9e474e2" />
+        <ComponentRef Id="_karma.conf.js_078f32a8_3985_412d_8af0_b539c0d3913d" />
+        <ComponentRef Id="_node.js_743ea9c7_73f4_4855_888a_f2693851c802" />
+        <ComponentRef Id="_package.json_a5b29f19_4ce1_4b08_9a5d_cb6d60763c9c" />
+        <ComponentRef Id="_index.js_7b88ba45_18ea_4b0b_bbd9_de77d439fa96" />
+        <ComponentRef Id="_license_0d078497_9e74_4b03_82fb_ed387e02cb33" />
+        <ComponentRef Id="_package.json_6924363f_9a00_4f47_b5fa_21eac1ac6aa1" />
+        <ComponentRef Id="_readme.md_3b69028b_00de_4dcc_aeeb_1f57cb5c3099" />
+        <ComponentRef Id="_index.test.js_a7ed8c7c_9843_4a4c_9a12_b4e174d61c7b" />
+        <ComponentRef Id="_mocha.opts_3a1fa8ca_3f3f_4980_871b_fb1e54062c78" />
+        <ComponentRef Id="_.eslintrc_19197ea0_f991_4bb2_a9e8_28d0e06f383b" />
+        <ComponentRef Id="_.jsfmtrc_448d6b99_2d18_4077_ad20_f2ea24027e34" />
+        <ComponentRef Id="_.npmignore_74c9f6cc_9f3c_4c96_9bf6_b76e4b742502" />
+        <ComponentRef Id="_.travis.yml_8ce8e95c_6d7c_4397_9e16_570dd31ec37d" />
+        <ComponentRef Id="_LICENSE_1253d7c1_3c89_4c43_8d21_6d327d549e46" />
+        <ComponentRef Id="_README.md_6a846f22_5a94_4869_9e71_7b53879b2282" />
+        <ComponentRef Id="_appveyor.yml_acce1f12_6e5d_442d_afe3_0722a10e26b4" />
+        <ComponentRef Id="_index.js_23fbaeaf_b8a9_490b_9c23_9b486505bb53" />
+        <ComponentRef Id="_package.json_5e51c10a_e3cd_461d_917d_ed708a413d57" />
+        <ComponentRef Id="_node.lib_2b2df1af_4ad9_41ba_9954_b7c076cc9104" />
+        <ComponentRef Id="_node.lib_820dfe02_b9a9_4908_a6a4_511fb1b5d3fb" />
+        <ComponentRef Id="_api_constants.h_f96e3861_badd_4d99_a71f_7e3ccaf006ff" />
+        <ComponentRef Id="_atomic_entry_flag.h_fa354b35_1b1b_458c_a9f3_00b9546e88e8" />
+        <ComponentRef Id="_caged_heap_local_data.h_31ce1832_bdf4_4984_80e9_0ad0c6223b5d" />
+        <ComponentRef Id="_compiler_specific.h_4c3a0ec4_4c18_4446_a60e_0bafb43f2b15" />
+        <ComponentRef Id="_finalizer_trait.h_75df439e_b1f8_4cb3_9e91_25102eb7bff0" />
+        <ComponentRef Id="_gc_info.h_0bead927_8e26_41be_8f08_302031dccd25" />
+        <ComponentRef Id="_logging.h_e8daaa38_f6f2_41a4_9943_3dd3ff11ea85" />
+        <ComponentRef Id="_persistent_node.h_d917dac9_5352_46d3_8741_256586659e7c" />
+        <ComponentRef Id="_pointer_policies.h_c011584f_56e3_4ffe_81ff_30cd20a323e2" />
+        <ComponentRef Id="_prefinalizer_handler.h_e0e62156_5777_4cc0_9c20_c52d2e513b95" />
+        <ComponentRef Id="_process_heap.h_7511112a_12a9_4466_b335_f657d651f6d7" />
+        <ComponentRef Id="_write_barrier.h_1290b3fe_e00d_455f_88d3_aa04887eb756" />
+        <ComponentRef Id="_allocation.h_b21e6db0_48c6_4a21_8bf4_5856cdde0e0e" />
+        <ComponentRef Id="_common.h_c78adabf_26c4_40b0_8fcf_9d0d573709af" />
+        <ComponentRef Id="_custom_space.h_2b2481e6_d2f0_4c28_84ea_e64fd7af9010" />
+        <ComponentRef Id="_garbage_collected.h_88d5bd10_a112_4004_a2c8_5d052446c212" />
+        <ComponentRef Id="_heap.h_d5f49609_3b12_4de8_8bfc_7c5d8d42f56a" />
+        <ComponentRef Id="_liveness_broker.h_2967169a_4226_4b4e_8bd2_6149c7c348e1" />
+        <ComponentRef Id="_macros.h_c25fa76b_e6e3_4d3a_8b15_1f1c9284c860" />
+        <ComponentRef Id="_member.h_63aecfe3_2a21_4e3f_b62b_6c012d7f7fc1" />
+        <ComponentRef Id="_persistent.h_4ffdab88_994c_4386_aac9_ea237ccdce47" />
+        <ComponentRef Id="_platform.h_de1f3703_de90_4190_a19b_6df3c253aa94" />
+        <ComponentRef Id="_prefinalizer.h_b8a5a61f_7cf9_428c_9233_ecb4a7977fb4" />
+        <ComponentRef Id="_source_location.h_37a34217_1500_44dc_9b5e_843ee8659f91" />
+        <ComponentRef Id="_trace_trait.h_40937b9b_3753_4562_9b05_7385daa76f39" />
+        <ComponentRef Id="_type_traits.h_6d033605_4b75_4dab_8823_3e99b769c9e1" />
+        <ComponentRef Id="_visitor.h_e5ad1030_9fba_4856_ad81_a9a1c2ade5f1" />
+        <ComponentRef Id="_libplatform_export.h_74f3a3be_25ac_4d8a_91a7_2e537d2b63cd" />
+        <ComponentRef Id="_libplatform.h_00a924a0_b31e_4dc5_bdfb_3306908769d3" />
+        <ComponentRef Id="_v8_tracing.h_442d5826_129d_4b3a_958e_82e438ebbc5f" />
+        <ComponentRef Id="_aix.h_f374ea5a_faad_4922_9a9e_9e0e85189fc1" />
+        <ComponentRef Id="_android_ifaddrs.h_ad03ac25_caf3_4824_a891_50996481fe03" />
+        <ComponentRef Id="_bsd.h_61b303c6_0b90_4576_9d26_9d63cfe2ad82" />
+        <ComponentRef Id="_darwin.h_c634204a_7d78_40f2_a349_0f74091e017b" />
+        <ComponentRef Id="_errno.h_60edc9c4_0ce3_4e36_b697_2d8af03c47dd" />
+        <ComponentRef Id="_linux.h_dd5e5612_4831_4958_ad5b_4b2e0c8f76f7" />
+        <ComponentRef Id="_os390.h_8f99ee11_0ac5_42ed_8c19_64839bd0c535" />
+        <ComponentRef Id="_posix.h_c220eac2_73af_46cd_973f_5c4e0f8f98c8" />
+        <ComponentRef Id="_stdint_msvc2008.h_51c9bee0_fc82_4fd2_a8ae_66c140ababf5" />
+        <ComponentRef Id="_sunos.h_43e5b13e_0005_444b_b4e9_0830dd6ddca4" />
+        <ComponentRef Id="_threadpool.h_2fbe9ee0_ec59_4054_be64_eb7c7ec7d6a5" />
+        <ComponentRef Id="_tree.h_2de1b183_12eb_48cf_8c17_e59f14043b3f" />
+        <ComponentRef Id="_unix.h_e6a080e9_6df8_4b4a_aa97_92f6f0b6bd73" />
+        <ComponentRef Id="_version.h_0a3d1dc9_f71c_40ce_ac9c_899c14469aef" />
+        <ComponentRef Id="_win.h_35f6ce25_a788_4fc9_b92e_4c7394ea007d" />
+        <ComponentRef Id="_common.gypi_d3e057c5_5f45_41ca_9a1a_73170c027b82" />
+        <ComponentRef Id="_config.gypi_f3820a66_3d5c_4626_a344_3bbba7763fbc" />
+        <ComponentRef Id="_js_native_api.h_e74c962a_81d9_45b7_86ab_0a4752ec9f1e" />
+        <ComponentRef Id="_js_native_api_types.h_60ef4c7f_4c19_4df8_9b16_94a95572fb61" />
+        <ComponentRef Id="_node.h_bea2b355_97b8_4ced_b44c_c7d314d5e713" />
+        <ComponentRef Id="_node_api.h_f4521ace_8bd1_443a_ad85_f88bf952a14d" />
+        <ComponentRef Id="_node_api_types.h_2e507fb3_bb0c_4273_aaac_a1d723f184bd" />
+        <ComponentRef Id="_node_buffer.h_f2c3fb05_7016_4512_ba90_2ac41b357a1d" />
+        <ComponentRef Id="_node_object_wrap.h_e5ff86aa_dad4_41ee_927e_b4b8bb23dcb4" />
+        <ComponentRef Id="_node_version.h_bebd45bd_213d_4f44_b5ea_707feee20f05" />
+        <ComponentRef Id="_uv.h_3c8d29b1_dc5b_40b1_a751_9735375007fe" />
+        <ComponentRef Id="_v8_cppgc.h_b0cfb1a5_eca2_4899_94bf_3785d194ef2b" />
+        <ComponentRef Id="_v8_fast_api_calls.h_50c91f08_2ba3_481f_b82a_9c40efe622b4" />
+        <ComponentRef Id="_v8_internal.h_a4b07973_1e01_45e9_9031_ce13c2062583" />
+        <ComponentRef Id="_v8_platform.h_51b7e239_06fc_483b_9e21_d31f1108d2c3" />
+        <ComponentRef Id="_v8_profiler.h_0d7e8e7b_eda1_4aa1_bca1_00d50b6cd647" />
+        <ComponentRef Id="_v8_util.h_4da38a75_9044_4651_a904_86e347bc7575" />
+        <ComponentRef Id="_v8_value_serializer_version.h_4af482da_305c_49e1_a821_eb930c772e4f" />
+        <ComponentRef Id="_v8_version_string.h_2302eb6b_48e4_4f49_8400_33cc97a22ec3" />
+        <ComponentRef Id="_v8_version.h_01b318cb_2b03_4b3e_aa18_0df6dcdc5195" />
+        <ComponentRef Id="_v8_wasm_trap_handler_posix.h_7002c0bf_4839_4cd6_81f6_0d1c1bf7d709" />
+        <ComponentRef Id="_v8_wasm_trap_handler_win.h_78451a5e_d546_4e97_b919_3ea3e073e19f" />
+        <ComponentRef Id="_v8.h_3a30d517_9f70_435f_bf88_29f746837722" />
+        <ComponentRef Id="_v8config.h_ee452062_e611_443e_905d_8a7bcebc1059" />
+        <ComponentRef Id="_zconf.h_d9ddb765_4ab1_460e_9d5c_3df4a6d5d795" />
+        <ComponentRef Id="_zlib.h_62f4aa45_5640_44f9_8218_ac9a14f90fd8" />
+        <ComponentRef Id="_node.lib_5144b76c_6d85_4b74_8790_b614c045851b" />
+        <ComponentRef Id="_installVersion_b41d3057_9c82_43cc_b87c_50b4fe12ff25" />
+        <ComponentRef Id="_exe_icon_extractor.node_cea65350_d4a4_41cd_99c8_3014a7f3eb14" />
+        <ComponentRef Id="_CL.command.1.tlog_9f3b6687_d72e_44f1_88a3_2ed0e8caf052" />
+        <ComponentRef Id="_CL.read.1.tlog_25adb4a7_05ec_420f_8a95_b556f131e037" />
+        <ComponentRef Id="_CL.write.1.tlog_8c3d5672_a26e_48c1_9767_fb76f8ab2b0a" />
+        <ComponentRef Id="_link.command.1.tlog_855319b6_41ad_48fc_a3d0_d589d3a47cba" />
+        <ComponentRef Id="_link.read.1.tlog_35be92df_3a02_44a5_a9ac_ab8f58892173" />
+        <ComponentRef Id="_link.write.1.tlog_5ba843ce_fda3_4aef_a4d4_393e8b9b0b8d" />
+        <ComponentRef Id="_module.lastbuildstate_77644935_71b2_45c5_8efd_50d08a2c5a04" />
+        <ComponentRef Id="_module.write.1u.tlog_ebed2e75_1e1d_454f_8173_707de5b51ab8" />
+        <ComponentRef Id="_module.obj_0a53a450_1854_4125_b657_6a2cb6664212" />
+        <ComponentRef Id="_module.node.recipe_c7465441_17ad_4d87_9497_172d81f9d952" />
+        <ComponentRef Id="_win_delay_load_hook.obj_404e2056_380b_41f0_b6af_4e68f55ea718" />
+        <ComponentRef Id="_.forge_meta_0df818c2_a3d4_4c26_9c02_c151b6c87f64" />
+        <ComponentRef Id="_module.exp_d3c1100d_3fd8_47bb_8d9a_f05ab991b1d3" />
+        <ComponentRef Id="_module.iobj_d4d8f0b2_e9b7_4fff_8e2c_fe526aec2272" />
+        <ComponentRef Id="_module.ipdb_297531e5_0ac3_4475_bda2_098e35a08d5c" />
+        <ComponentRef Id="_module.lib_49b64a21_5304_49a3_9cff_481403f231f8" />
+        <ComponentRef Id="_module.node_06910610_7d4c_44cb_b02b_9df4ec6a5c7d" />
+        <ComponentRef Id="_module.pdb_076add17_6685_4106_9d44_cfe279370603" />
+        <ComponentRef Id="_binding.sln_9c9d0d67_0225_4009_8b77_6f47a88d67c2" />
+        <ComponentRef Id="_config.gypi_e3f9b985_5f7e_467c_831e_d2cf983c8eef" />
+        <ComponentRef Id="_module.vcxproj_50cea363_baa5_4499_aa8b_2f224e78e860" />
+        <ComponentRef Id="_module.vcxproj.filters_1f409f0c_06a2_4188_82b3_accba7145bba" />
+        <ComponentRef Id="_module.cc_5a2442f2_cece_45ca_b38a_7d79f53fa0df" />
+        <ComponentRef Id="_README.md_f3e12fde_463d_479d_bdd9_7382c6bdba0f" />
+        <ComponentRef Id="_binding.gyp_22ded4fe_4422_4ffe_82c4_38dd7d969815" />
+        <ComponentRef Id="_bindings.js_3acaa9a8_ae98_4493_9729_ec2de5d74562" />
+        <ComponentRef Id="_package.json_00b4faaf_4e3a_45cd_94f7_b1c73f1ac274" />
+        <ComponentRef Id="_test.js_80f0d52f_0d17_43e5_9588_d7e6ec4f7249" />
+        <ComponentRef Id="_LICENSE_56168037_71e0_4269_932b_ebe5f2bc03f8" />
+        <ComponentRef Id="_README.md_a11cfa9e_239b_4091_a88b_0ee10316cfaf" />
+        <ComponentRef Id="_debug.js_1fe47aa7_32aa_4054_af97_6d355522522e" />
+        <ComponentRef Id="_http.js_45c2d7c8_c284_47cd_8382_b92a4a5ff7ee" />
+        <ComponentRef Id="_https.js_f8d07efe_fac7_41b8_9de1_a91a78a70383" />
+        <ComponentRef Id="_index.js_ed40153f_465f_45dc_af49_8c2065c97ba1" />
+        <ComponentRef Id="_package.json_624095e2_b5a4_426c_984e_5ad891f86708" />
+        <ComponentRef Id="_commonjs.js_285604fa_a6c1_4c50_a012_11960a1d5b46" />
+        <ComponentRef Id="_gh.js_afdc2c9d_c3d5_46cf_9e31_65f23921f21d" />
+        <ComponentRef Id="_index.html_79ea7443_e618_4ea8_9a56_2dd250598ac7" />
+        <ComponentRef Id="_index.js_c2dc12ef_80ea_4f75_b759_582da4e9a67d" />
+        <ComponentRef Id="_mocha.opts_c72cab91_f4bc_4609_82ed_dea3c9fcc8d2" />
+        <ComponentRef Id="_.travis.yml_91495b42_09b0_4f23_b4bb_19f92baba776" />
+        <ComponentRef Id="_README.md_c83d3b54_7c64_43c0_8e63_28abcb1fab83" />
+        <ComponentRef Id="_bower.json_73af77ee_fb43_4b7c_953c_fef048637182" />
+        <ComponentRef Id="_index.js_2d843038_dc39_4e7d_955f_0d65ca0792d9" />
+        <ComponentRef Id="_package.json_a2b48e6a_d875_4692_bce7_ecc12de0ed9e" />
+        <ComponentRef Id="_index.js_cab15724_4533_407c_899b_aef475344030" />
+        <ComponentRef Id="_.travis.yml_ab50286c_4dab_4803_9b90_5b36c0678221" />
+        <ComponentRef Id="_History.md_84f7f8a0_80a8_4540_aef8_eb15e8fd6dd0" />
+        <ComponentRef Id="_LICENSE_MIT_b09ecd83_f1cd_42df_a8d9_c121b92a9051" />
+        <ComponentRef Id="_Readme.md_e04defe9_98b5_4e5f_bea2_3c5552a6302f" />
+        <ComponentRef Id="_index.js_52902d5d_1c0d_4a92_a7bd_82e953b893dc" />
+        <ComponentRef Id="_package.json_57eae7b9_53e9_4d5a_bda9_3672436fa56d" />
+        <ComponentRef Id="_index.js_75d12a41_0e9d_435d_9a12_8df72592e4ac" />
+        <ComponentRef Id="_license.md_39d253bd_5208_48f5_9865_5f520e015870" />
+        <ComponentRef Id="_package.json_dbe3fec0_7919_433a_8e28_32e8428e93d4" />
+        <ComponentRef Id="_readme.md_2d0ffd30_9b07_4f91_85dc_d51d926ed692" />
+        <ComponentRef Id="_LICENSE_MIT.txt_5d2b445c_864c_4fb4_becb_4d37e83ed828" />
+        <ComponentRef Id="_README.md_1a403861_4de1_47f6_af4c_6dc7dfdb86c8" />
+        <ComponentRef Id="_package.json_20c8683b_577d_4de2_bc45_39e7186da088" />
+        <ComponentRef Id="_punycode.es6.js_db31a1af_d4ef_4a5c_adad_90ce28ceff60" />
+        <ComponentRef Id="_punycode.js_b498cf46_2736_4764_9ceb_5f1e21ee62b9" />
+        <ComponentRef Id="_config.yml_37ba031d_ff3e_46c8_bf18_bfb0f6c8218b" />
+        <ComponentRef Id="_index.js_6feef661_50de_4cc6_b574_b5d34c5b771d" />
+        <ComponentRef Id="_license.md_89e65c91_c29b_4fa3_b7ce_a0040d5ae28d" />
+        <ComponentRef Id="_package.json_3d72e3ca_5bb6_4a8c_94e6_1bc57ba91023" />
+        <ComponentRef Id="_readme.md_7ed49960_e808_4161_8f5c_99dac421ea6d" />
+        <ComponentRef Id="_index.test_d.ts_05c1ee45_f00f_42e3_9d59_375868a973bb" />
+        <ComponentRef Id="_index.test.js_f650588d_4741_45f7_80da_c95a33b4586f" />
+        <ComponentRef Id="_.releaserc.json_2bbf3028_17ac_4e99_aa2e_31779fb8ae49" />
+        <ComponentRef Id="_LICENSE_df18288a_9f09_445d_a76f_cfa6ea9e04a8" />
+        <ComponentRef Id="_index.d.ts_b5c8d9fd_e1e7_459d_bfb9_89b82c40b435" />
+        <ComponentRef Id="_index.js_3122a38c_10eb_4a5c_a34f_b664f81b2026" />
+        <ComponentRef Id="_package.json_3177717f_eed9_4487_8b31_4c87bbfbf7ce" />
+        <ComponentRef Id="_readme.md_08216559_616d_4fb8_a7d2_089e2f833c79" />
+        <ComponentRef Id="_screenshot.png_6967b987_397e_448c_a0e4_c293cca1a250" />
+        <ComponentRef Id="_resources_app_.gitignore_a82c7e6d_1ae3_47c3_a448_67398e737b90" />
+        <ComponentRef Id="_resources_app_LICENSE_2a44725b_1952_4cbb_aa88_3832a25e1833" />
+        <ComponentRef Id="_resources_app_README.md_1bbcd21d_f5fe_4057_b9b1_b26e97393a43" />
+        <ComponentRef Id="_resources_app_forge.config.js_388a825f_9aed_4011_8f26_6c09dbafc098" />
+        <ComponentRef Id="_resources_app_index.html_e4e0b4b9_ce83_447e_b8f0_b66f8afc7aaf" />
+        <ComponentRef Id="_resources_app_installation.md_f0601283_984f_4e77_b9a3_b13bd1238428" />
+        <ComponentRef Id="_resources_app_logo.icns_f3958bb2_758d_45f8_b595_5e5dc6a93444" />
+        <ComponentRef Id="_resources_app_logo.ico_d06fbbdb_252e_4179_a7f8_52e106b4e9cf" />
+        <ComponentRef Id="_resources_app_logo.png_d43ae1bf_3f0f_45dc_a013_e8ec090b8854" />
+        <ComponentRef Id="_resources_app_macos_blocked.png_a7876ea8_335f_43ab_b933_5caecd00d609" />
+        <ComponentRef Id="_resources_app_macos_open_1.png_b036687e_f78d_446c_8149_5ef10739a48a" />
+        <ComponentRef Id="_resources_app_macos_open_2.png_c62afa52_6423_4d7e_990d_646d36d38688" />
+        <ComponentRef Id="_resources_app_main.js_080a1ca5_2463_473d_ab6e_2d1082a5d77b" />
+        <ComponentRef Id="_resources_app_package.json_68e33152_37f5_48ea_81be_f5513cfc4d18" />
+        <ComponentRef Id="_resources_app_preload.js_fd225c65_6860_446b_88ed_c92ddcb82261" />
+        <ComponentRef Id="_resources_app_style.css_9c96c0eb_eaa5_44d1_9bbc_e42949943659" />
+        <ComponentRef Id="_swiftshader_libEGL.dll_12a9d7c0_d789_4168_8028_87fa9ce54d50" />
+        <ComponentRef Id="_swiftshader_libGLESv2.dll_ef83fce0_18ca_4d08_94e1_700829c834e9" />
+        <ComponentRef Id="_LICENSE_251245aa_5f8c_4428_9571_b0748ea795ac" />
+        <ComponentRef Id="_LICENSES.chromium.html_4bc72e86_f338_479d_b148_06a7bef3a861" />
+        <ComponentRef Id="_chrome_100_percent.pak_d2c9fce4_7a48_4d46_a586_fc54f0601cee" />
+        <ComponentRef Id="_chrome_200_percent.pak_18f86e7c_bb19_4842_a13a_7201e9e483aa" />
+        <ComponentRef Id="_d3dcompiler_47.dll_85b35970_3e25_4310_b38c_babcbfd41e4f" />
+        <ComponentRef Id="_ffmpeg.dll_bf3b5174_e5c5_4c25_ab3d_26558d8d4633" />
+        <ComponentRef Id="_icudtl.dat_18955486_6c95_4cf5_a2b8_63865ffa14eb" />
+        <ComponentRef Id="_libEGL.dll_7f8660c7_8976_4a59_b0c3_de61230e8c00" />
+        <ComponentRef Id="_libGLESv2.dll_728313b6_c5f6_4a86_8dbc_6a815de8d699" />
+        <ComponentRef Id="_resources.pak_7d133d00_e6c9_4b55_b236_4439500339a0" />
+        <ComponentRef Id="_snapshot_blob.bin_76011753_c556_4eb7_98d5_6cf2e85a17be" />
+        <ComponentRef Id="_v8_context_snapshot.bin_99783f52_841d_454a_b4d4_6188dbddbd31" />
+        <ComponentRef Id="_version_19a16b6b_4437_48be_a32d_0ce60276f447" />
+        <ComponentRef Id="_vk_swiftshader.dll_02f6c51f_d27b_4637_812b_b619788b7c31" />
+        <ComponentRef Id="_vk_swiftshader_icd.json_99f1c5c1_fd64_4041_a533_882114ac99c4" />
+        <ComponentRef Id="_vulkan_1.dll_627921a3_fb77_4906_a8d4_24961b105cc1" />
+        <ComponentRef Id="_whitebear.exe_da5e33b5_3bb7_443a_bef3_439c5cd94250" />
+        <ComponentRef Id="_whitebear.exe_32a45340_e0a1_43cd_8897_93875e10f8a3" />
+        <ComponentRef Id="_.installInfo.json_06641d58_deae_449e_a734_72757931504f" />
+        <ComponentRef Id="RegistryInstallPath" />
+        <ComponentRef Id="UninstallDisplayName" />
+        <ComponentRef Id="UninstallPublisher" />
+        <ComponentRef Id="UninstallDisplayVersion" />
+        <ComponentRef Id="UninstallModifyString" />
+        <ComponentRef Id="UninstallString" />
+        <ComponentRef Id="UninstallDisplayIcon" />
+        <ComponentRef Id="ApplicationShortcut" />
+        <ComponentRef Id="DesktopShortcut" />
+        <ComponentRef Id="PurgeOnUninstall" />
+      </Feature> 
+    </Feature> 
+  </Product>
+</Wix>
