@@ -44,7 +44,8 @@ module.exports = {
             config: {
                 name: 'whitebear',
                 exe: 'whitebear.exe',
-                setupIcon: 'logo.ico'
+                setupIcon: 'logo.ico',
+                setupExe: 'WhiteBearSetup.exe'
             }
         }
     ],
