@@ -2,7 +2,7 @@
   "name": "whitebear",
   "productName": "WhiteBear",
   "companyName": "Team int",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "WhiteBear client",
   "main": "main.js",
   "scripts": {
