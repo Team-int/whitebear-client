@@ -18,7 +18,7 @@
 
 ![Blocked](./macos-blocked.png)
 
-이 경우 Finder-애플리케이션-DNS Resolver를 우클릭-열기에서 열기를 눌러주세요. (2번째 실행부터는 Launchpad를 이용하면 돼요)
+이 경우 Finder-애플리케이션-WhiteBear를 우클릭-열기에서 열기를 눌러주세요. (2번째 실행부터는 Launchpad를 이용하면 돼요)
 
 ![Open-1](./macos-open-1.png)
 

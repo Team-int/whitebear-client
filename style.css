@@ -43,3 +43,7 @@ body {
 .empty {
     min-width: 20px;
 }
+
+#history-container {
+    overflow: scroll;
+}

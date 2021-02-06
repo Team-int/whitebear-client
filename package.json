@@ -10,7 +10,7 @@
     "package": "electron-forge package",
     "make": "electron-forge make"
   },
-  "repository": "https://github.com/int-Team/dns-resolver",
+  "repository": "https://github.com/int-Team/whitebear-client",
   "keywords": [
     "whitebear"
   ],
