@@ -27,7 +27,7 @@
     "electron": "^11.2.0"
   },
   "dependencies": {
-    "axios": "^0.21.1",
+    "axios": "^0.21.2",
     "electron-squirrel-startup": "^1.0.0",
     "punycode": "^2.1.1",
     "update-electron-app": "^2.0.1"
